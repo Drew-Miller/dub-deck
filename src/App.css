@@ -6,9 +6,10 @@
   overflow: hidden;
 }
 
-/* When the player is docked at the bottom, reserve space so content isn't hidden. */
+/* When the mini bar is docked at the bottom, reserve space so content isn't hidden.
+   (The expanded full-window player covers everything, so this only matters when collapsed.) */
 .app-shell.with-player .app-main {
-  padding-bottom: calc(var(--player-h) + 16px);
+  padding-bottom: 88px;
 }
 
 /* ---- sidebar ---- */

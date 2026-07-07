@@ -43,6 +43,22 @@ struct MediaTags {
     title: Option<String>,
     artist: Option<String>,
     duration: Option<f64>,
+    width: Option<u16>,
+    height: Option<u16>,
+}
+
+/// Read the first video track's pixel dimensions (for a quality badge).
+fn read_dimensions(path: &str) -> Option<(u16, u16)> {
+    let file = std::fs::File::open(path).ok()?;
+    let size = file.metadata().ok()?.len();
+    let reader = std::io::BufReader::new(file);
+    let mp4 = mp4::Mp4Reader::read_header(reader, size).ok()?;
+    for track in mp4.tracks().values() {
+        if matches!(track.track_type(), Ok(mp4::TrackType::Video)) {
+            return Some((track.width(), track.height()));
+        }
+    }
+    None
 }
 
 /// Read embedded title/artist/duration from an MP4-family file (mp4/m4v/mov).
@@ -50,11 +66,17 @@ struct MediaTags {
 /// user doesn't have to type what's already inside the file.
 #[tauri::command]
 fn read_media_tags(app: tauri::AppHandle, path: String) -> MediaTags {
+    let (width, height) = match read_dimensions(&path) {
+        Some((w, h)) => (Some(w), Some(h)),
+        None => (None, None),
+    };
     match mp4ameta::Tag::read_from_path(&path) {
         Ok(tag) => MediaTags {
             title: tag.title().map(|s| s.to_string()),
             artist: tag.artist().map(|s| s.to_string()),
             duration: tag.duration().map(|d| d.as_secs_f64()),
+            width,
+            height,
         },
         Err(e) => {
             write_log_line(&app, &format!("[read_media_tags] no tags for {path}: {e}"));
@@ -62,6 +84,8 @@ fn read_media_tags(app: tauri::AppHandle, path: String) -> MediaTags {
                 title: None,
                 artist: None,
                 duration: None,
+                width,
+                height,
             }
         }
     }
@@ -117,6 +141,16 @@ pub fn run() {
             );
 
             CREATE INDEX IF NOT EXISTS idx_playlist_items_pl ON playlist_items(playlist_id, position);
+        ",
+        },
+        Migration {
+            version: 2,
+            description: "keep original file metadata (filename, raw title, resolution)",
+            kind: MigrationKind::Up,
+            sql: "
+            ALTER TABLE episodes ADD COLUMN original_filename TEXT;
+            ALTER TABLE episodes ADD COLUMN original_title TEXT;
+            ALTER TABLE episodes ADD COLUMN video_height INTEGER;
         ",
     }];
 

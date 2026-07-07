@@ -14,12 +14,18 @@ interface MediaTags {
   title: string | null;
   artist: string | null;
   duration: number | null;
+  width: number | null;
+  height: number | null;
+}
+
+/** The raw filename (basename with extension) — kept permanently on the episode. */
+function basename(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
 /** basename without extension, separators turned into spaces. */
 function filenameTitle(filePath: string): string {
-  const base = filePath.split(/[\\/]/).pop() ?? filePath;
-  return base.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  return basename(filePath).replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
 }
 
 /** Pull an episode number out of a title/filename, e.g. "Episode 099" -> 99. */
@@ -63,7 +69,7 @@ export async function pickAndImport(): Promise<ImportResult | null> {
   let failed = 0;
 
   for (const path of paths) {
-    let tags: MediaTags = { title: null, artist: null, duration: null };
+    let tags: MediaTags = { title: null, artist: null, duration: null, width: null, height: null };
     try {
       tags = await invoke<MediaTags>("read_media_tags", { path });
     } catch (e) {
@@ -81,6 +87,10 @@ export async function pickAndImport(): Promise<ImportResult | null> {
         episode_number,
         published_date: null, // date intentionally left off
         file_path: path,
+        original_filename: basename(path), // always tied to the file
+        original_title: tags.title ?? null, // raw embedded title
+        video_height: tags.height ?? null,
+        duration: tags.duration ?? null,
       });
       imported++;
       shows.add(showTitle);

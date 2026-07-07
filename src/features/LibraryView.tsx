@@ -4,9 +4,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { Show, Episode, EpisodeFilter } from "../types";
-import { listShows, listEpisodes, listYears } from "../lib/db";
+import { listShows, listEpisodes, listYears, deleteEpisode } from "../lib/db";
 import { usePlayer, useLibraryVersion, useBumpLibrary } from "../lib/state";
+import { log } from "../lib/log";
 import FilterBar, { type FilterState } from "./FilterBar";
 import EditEpisodeDialog from "./EditEpisodeDialog";
 import "./LibraryView.css";
@@ -47,6 +49,8 @@ export default function LibraryView(): JSX.Element {
   const player = usePlayer();
   const libraryVersion = useLibraryVersion();
   const bumpLibrary = useBumpLibrary();
+
+  const [menuFor, setMenuFor] = useState<number | null>(null);
   const [editing, setEditing] = useState<Episode | null>(null);
 
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
@@ -137,6 +141,29 @@ export default function LibraryView(): JSX.Element {
     player.play(ep, queueRef.current);
   };
 
+  const onReveal = async (ep: Episode) => {
+    setMenuFor(null);
+    try {
+      await revealItemInDir(ep.file_path);
+    } catch (e) {
+      log.warn("reveal in finder failed", { error: String(e) });
+    }
+  };
+
+  const onDelete = async (ep: Episode) => {
+    setMenuFor(null);
+    await deleteEpisode(ep.id);
+    bumpLibrary();
+  };
+
+  // Close the row ⋯ menu on any outside mousedown.
+  useEffect(() => {
+    if (menuFor == null) return;
+    const onDown = () => setMenuFor(null);
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuFor]);
+
   return (
     <div className="library">
       <div className="library-header">
@@ -198,19 +225,6 @@ export default function LibraryView(): JSX.Element {
                 </div>
 
                 <button
-                  className="icon-btn edit-btn"
-                  title="Edit metadata"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing(ep);
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-                  </svg>
-                </button>
-
-                <button
                   className="icon-btn play-btn"
                   title="Play"
                   onClick={(e) => {
@@ -222,6 +236,37 @@ export default function LibraryView(): JSX.Element {
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 </button>
+
+                <div className="row-menu-wrap" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="icon-btn"
+                    title="More"
+                    aria-haspopup="menu"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuFor(menuFor === ep.id ? null : ep.id);
+                    }}
+                  >
+                    <span aria-hidden="true">⋯</span>
+                  </button>
+                  {menuFor === ep.id && (
+                    <div
+                      className="row-menu card"
+                      role="menu"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <button role="menuitem" onClick={() => { setMenuFor(null); setEditing(ep); }}>
+                        Edit metadata
+                      </button>
+                      <button role="menuitem" onClick={() => onReveal(ep)}>
+                        Reveal in Finder
+                      </button>
+                      <button role="menuitem" className="row-menu-danger" onClick={() => onDelete(ep)}>
+                        Delete episode
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })

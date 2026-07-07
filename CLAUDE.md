@@ -1,7 +1,13 @@
 # CLAUDE.md — dub-deck
 
 Guidance for AI agents (and humans) working in this repo. Read this first, then
-`ARCHITECTURE.md` for the file/folder + data-location map.
+`ARCHITECTURE.md` for the file/folder + data-location map, and
+**`.claude/docs/decisions.md`** for the running record of decisions.
+
+> **Decision log — `.claude/docs/decisions.md`:** the canonical, durable record of every
+> non-obvious product/UX/architecture decision and *why*. Chat history isn't visible to a
+> fresh agent, so this file is how decisions survive across sessions. **Read it at the start
+> of every task, and append any new decision made in conversation** (decision + reason + date).
 
 ---
 

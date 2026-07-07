@@ -172,3 +172,27 @@
   font-weight: 600;
   color: var(--text);
 }
+
+/* ---- per-row ⋯ menu (edit / delete / reveal) ---- */
+.row-menu-wrap { position: relative; flex: 0 0 auto; }
+.row-menu {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  min-width: 180px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  box-shadow: var(--shadow);
+}
+.row-menu button {
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+}
+.row-menu button:hover { background: var(--bg-hover); }
+.row-menu-danger { color: var(--danger); }
+.row-menu-danger:hover { background: var(--danger-bg); }

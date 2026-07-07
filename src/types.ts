@@ -20,7 +20,13 @@ export interface Episode {
   published_date: string | null;
   /** Absolute path on disk. Referenced in place — never copied. */
   file_path: string;
-  /** Seconds; null until first playback records it. */
+  /** Original filename (basename) — always tied to the file, even when other fields are derived. */
+  original_filename: string | null;
+  /** Raw embedded title before any cleanup. */
+  original_title: string | null;
+  /** Video height in px (for a quality badge, e.g. 360 -> "360p"). */
+  video_height: number | null;
+  /** Seconds; filled at import from tags and/or on first playback. */
   duration: number | null;
   liked: boolean;
   favorited: boolean;
@@ -68,4 +74,8 @@ export interface NewEpisodeInput {
   episode_number?: number | null;
   published_date?: string | null;
   file_path: string;
+  original_filename?: string | null;
+  original_title?: string | null;
+  video_height?: number | null;
+  duration?: number | null;
 }

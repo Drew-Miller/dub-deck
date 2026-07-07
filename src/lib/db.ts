@@ -33,6 +33,9 @@ function normalizeEpisode(row: any): Episode {
     episode_number: row.episode_number ?? null,
     published_date: row.published_date ?? null,
     file_path: row.file_path,
+    original_filename: row.original_filename ?? null,
+    original_title: row.original_title ?? null,
+    video_height: row.video_height ?? null,
     duration: row.duration ?? null,
     liked: !!row.liked,
     favorited: !!row.favorited,
@@ -82,8 +85,9 @@ export async function createEpisode(input: NewEpisodeInput): Promise<number> {
   const showId = await getOrCreateShow(input.showTitle);
   const res = await db.execute(
     `INSERT INTO episodes
-        (show_id, title, description, episode_number, published_date, file_path)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+        (show_id, title, description, episode_number, published_date, file_path,
+         original_filename, original_title, video_height, duration)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       showId,
       input.title.trim(),
@@ -91,6 +95,10 @@ export async function createEpisode(input: NewEpisodeInput): Promise<number> {
       input.episode_number ?? null,
       input.published_date ?? null,
       input.file_path,
+      input.original_filename ?? null,
+      input.original_title ?? null,
+      input.video_height ?? null,
+      input.duration ?? null,
     ]
   );
   return res.lastInsertId as number;
