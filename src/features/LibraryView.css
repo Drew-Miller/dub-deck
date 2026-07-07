@@ -1,0 +1,174 @@
+/* LibraryView — filtered episode browser. Uses theme.css variables + utilities. */
+
+.library {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+
+/* ---- Header / filters ---- */
+
+.library-header {
+  flex: 0 0 auto;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.filterbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+}
+
+/* Long chip rows scroll horizontally instead of pushing the list down. */
+.chip-scroll {
+  max-height: 92px;
+  overflow-y: auto;
+  padding-bottom: 2px;
+}
+
+.chip {
+  cursor: pointer;
+}
+
+.chip-count {
+  opacity: 0.6;
+  font-size: 11px;
+}
+
+.filter-search {
+  min-width: 0;
+}
+
+.sort-select {
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.sort-select select {
+  cursor: pointer;
+}
+
+.library-meta {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+/* ---- Episode list ---- */
+
+.library-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px 12px 20px;
+}
+
+.episode-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.episode-row:hover {
+  background: var(--bg-elev);
+}
+.episode-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.episode-row.current {
+  background: var(--bg-elev-2);
+}
+.episode-row.current .episode-title {
+  color: var(--accent);
+}
+
+.episode-num {
+  flex: 0 0 auto;
+  min-width: 40px;
+  height: 32px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.episode-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.episode-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.episode-sub {
+  font-size: 12px;
+}
+
+.episode-flags {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.episode-flags .flag.like { color: var(--accent-2); }
+.episode-flags .flag.fav  { color: var(--fav); }
+
+.play-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.episode-row:hover .play-btn,
+.episode-row:focus-within .play-btn,
+.episode-row.current .play-btn {
+  opacity: 1;
+}
+.play-btn:hover { color: var(--accent); }
+
+/* ---- Empty state ---- */
+
+.library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 64px 20px;
+  text-align: center;
+}
+.library-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}

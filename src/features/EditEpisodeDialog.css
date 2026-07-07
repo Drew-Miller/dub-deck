@@ -1,0 +1,34 @@
+.edit-modal { width: min(600px, 94vw); }
+
+.edit-head { margin-bottom: 4px; }
+.edit-title { margin: 0; font-size: 18px; }
+
+.edit-path {
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-solid);
+}
+
+.edit-two { gap: 12px; align-items: flex-start; }
+
+.edit-actions { margin-top: 8px; }
+
+.edit-confirm { gap: 8px; font-size: 13px; }
+
+.edit-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+.edit-danger:hover { filter: brightness(1.1); }
+
+.edit-delete-trigger { color: var(--text-dim); }
+.edit-delete-trigger:hover { color: var(--danger); }
+
+.edit-note {
+  margin: 16px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}

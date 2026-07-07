@@ -1,0 +1,213 @@
+/* dub-deck global theme — "Dead Terminal": a cold, decayed sci-fi horror console.
+   Near-black panels, sickly phosphor-green readouts, blood-red alarm accents,
+   monospace throughout, faint CRT scanlines. Unnerving on purpose.
+   Everything flows from these tokens + utility classes. */
+
+:root {
+  --bg:        #05080600; /* layered over the scanline stack below */
+  --bg-base:   #050806;   /* cold near-black, faint green */
+  --bg-elev:   #0a0f0c;   /* panel */
+  --bg-elev-2: #0e1310;   /* control / input */
+  --bg-hover:  #16201a;
+  --border:    #1e2c2380;
+  --border-solid: #1e2c23;
+  --screen:    #030705;   /* terminal screen inset */
+  --text:      #b9ccbe;   /* pale sickly phosphor */
+  --text-dim:  #6c8377;   /* mossy grey-green */
+  --text-mute: #3f4f47;
+  --accent:    #57d98a;   /* phosphor terminal green — primary */
+  --accent-ink:#03110a;   /* text on green */
+  --accent-2:  #3fb0b8;   /* cold cyan — secondary */
+  --like:      #e23b32;   /* blood red — likes / alarm */
+  --fav:       #d7a12b;   /* hazard amber — favorites */
+  --danger:    #e23b32;
+  --danger-bg: #e23b3218;
+  --radius:    4px;       /* hard, boxy — terminal panels */
+  --radius-sm: 3px;
+  --bevel: inset 0 0 0 1px #ffffff08;
+  --glow-accent: 0 0 10px #57d98a55, 0 0 22px #57d98a22;
+  --glow-text: 0 0 6px #57d98a70;
+  --shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
+  --sidebar-w: 244px;
+  --player-h:  clamp(320px, 42vh, 520px);
+  --mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--mono);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  color: var(--text);
+  /* vignette + toxic corner glow + fine CRT scanlines over the cold base */
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.18) 3px
+    ),
+    radial-gradient(1200px 700px at 82% -12%, #0c2018 0%, transparent 58%),
+    radial-gradient(900px 600px at -8% 112%, #14060a 0%, transparent 55%),
+    var(--bg-base);
+}
+
+body { overflow: hidden; }
+
+button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; }
+
+input, select, textarea {
+  font: inherit;
+  color: var(--accent);
+  background: var(--screen);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  outline: none;
+  box-shadow: inset 0 0 8px #00000099;
+  text-shadow: var(--glow-text);
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 8px #000, 0 0 0 2px #57d98a2e, var(--glow-accent);
+}
+::placeholder { color: var(--text-mute); text-shadow: none; }
+
+/* ---- shared utility classes ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: #0c1310;
+  color: var(--text);
+  border: 1px solid var(--border-solid);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  transition: color 0.12s, border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+.btn:hover { color: var(--accent); border-color: var(--accent); box-shadow: var(--glow-accent); }
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: #0c1a12;
+  border-color: var(--accent);
+  color: var(--accent);
+  text-shadow: var(--glow-text);
+  box-shadow: var(--glow-accent), var(--bevel);
+}
+.btn-primary:hover { background: #123322; color: #baf7cf; }
+.btn-ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text); box-shadow: none; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  transition: background 0.12s, color 0.12s, transform 0.08s;
+}
+.icon-btn:hover { background: var(--bg-hover); color: var(--text); }
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn.active { color: var(--accent); text-shadow: var(--glow-text); }
+.icon-btn.active.fav { color: var(--fav); text-shadow: 0 0 10px #d7a12b66; }
+.icon-btn.active.like { color: var(--like); text-shadow: 0 0 12px #e23b3277; }
+
+.card {
+  background: linear-gradient(180deg, #0a0f0c, #070b09);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  box-shadow: var(--bevel);
+}
+
+.chip {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: #0b110e;
+  border: 1px solid var(--border-solid);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+.chip:hover { color: var(--text); border-color: #2f4638; }
+.chip.active {
+  background: #0f2418;
+  border-color: var(--accent);
+  color: var(--accent);
+  text-shadow: var(--glow-text);
+  box-shadow: var(--glow-accent);
+}
+
+/* Terminal readout for episode numbers */
+.episode-num, .dd-row-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--screen);
+  border: 1px solid #16351f;
+  border-radius: 2px;
+  box-shadow: inset 0 0 6px #000;
+  text-shadow: var(--glow-text);
+  padding: 2px 6px;
+}
+
+/* error / alarm banner (used by dialogs) */
+.import-error {
+  margin: 6px 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: #ff9b93;
+  font-size: 13px;
+  text-shadow: 0 0 8px #e23b3255;
+}
+
+.muted { color: var(--text-dim); }
+.mute { color: var(--text-mute); }
+.row { display: flex; align-items: center; gap: 10px; }
+.spread { justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.grow { flex: 1; min-width: 0; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scroll-y { overflow-y: auto; }
+
+.scroll-y::-webkit-scrollbar, .scroll-area::-webkit-scrollbar { width: 10px; height: 10px; }
+.scroll-y::-webkit-scrollbar-thumb, .scroll-area::-webkit-scrollbar-thumb {
+  background: #1a2a20; border-radius: 2px;
+}
+
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(1, 3, 2, 0.74);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal {
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #0a0f0c, #070b09);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 0 0 1px #12281c inset;
+  padding: 22px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field label {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

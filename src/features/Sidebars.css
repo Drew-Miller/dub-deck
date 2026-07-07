@@ -1,0 +1,177 @@
+/* Shared layout + row styling for the PlaylistsView, FavoritesView and
+   ShuffleView features. Everything here leans on the global theme variables
+   from theme.css so the three views feel like one consistent dark surface. */
+
+/* ---- view shell ---- */
+
+.dd-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 20px;
+  gap: 16px;
+}
+
+.dd-view-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.dd-view-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* two-column split (playlists: list on the left, episodes on the right) */
+.dd-split {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.dd-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px;
+  gap: 12px;
+}
+
+.dd-panel-left {
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+}
+
+.dd-panel-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.dd-panel-head {
+  gap: 10px;
+}
+
+.dd-panel-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---- generic scrolling list ---- */
+
+.dd-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ---- playlist picker items ---- */
+
+.dd-pl-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text);
+  transition: background 0.12s;
+}
+.dd-pl-item:hover { background: var(--bg-hover); }
+.dd-pl-item.active { background: var(--bg-elev-2); box-shadow: inset 2px 0 0 var(--accent); }
+.dd-pl-item .dd-pl-name { font-size: 14px; font-weight: 600; }
+.dd-pl-item .dd-pl-count { font-size: 12px; color: var(--text-mute); }
+
+.dd-new-pl { gap: 8px; }
+.dd-new-pl input { flex: 1; min-width: 0; }
+
+/* ---- episode / track rows ---- */
+
+.dd-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--text);
+  transition: background 0.12s;
+}
+.dd-row:hover { background: var(--bg-hover); }
+.dd-row:hover .dd-row-num .dd-row-play { display: inline; }
+.dd-row:hover .dd-row-num .dd-row-index { display: none; }
+.dd-row-remove { opacity: 0; transition: opacity 0.12s; }
+.dd-row:hover .dd-row-remove { opacity: 1; }
+
+.dd-row-num {
+  flex: 0 0 28px;
+  text-align: center;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.dd-row-num .dd-row-play { display: none; color: var(--text); }
+
+.dd-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dd-row-title { font-size: 14px; font-weight: 500; }
+.dd-row-sub { font-size: 12px; color: var(--text-dim); }
+
+.dd-row-date {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- chip / tab groups ---- */
+
+.dd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- empty states ---- */
+
+.dd-empty {
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-mute);
+  text-align: center;
+  padding: 24px;
+}
+.dd-empty .dd-empty-icon { font-size: 30px; opacity: 0.7; }
+
+/* ---- shuffle hero ---- */
+
+.dd-shuffle-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  align-items: flex-start;
+}
+.dd-shuffle-actions { gap: 12px; flex-wrap: wrap; }
+.dd-shuffle-big {
+  font-size: 16px;
+  padding: 12px 22px;
+}
+.dd-queue-build { gap: 8px; }
+.dd-queue-build input { width: 84px; }
+.dd-shuffle-status { font-size: 13px; }
+.dd-shuffle-status.error { color: var(--accent); }
+.dd-shuffle-status.ok { color: var(--accent-2); }
