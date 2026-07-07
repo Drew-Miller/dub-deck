@@ -89,6 +89,30 @@ Dates are absolute. Format: `YYYY-MM-DD — decision — why`.
   mounted and hidden so audio continues and re-expanding is seamless). The full player is
   where the user watches. — User request.
 
+## Remote streaming sources
+- **2026-07-07** — Add **URL-based sources** so the app never hosts media: it stores only
+  URLs + metadata and streams from the publisher's host (the Apple/Spotify model). — User
+  wants a "site + library" without paying for storage.
+- **2026-07-07** — Ship three source models: **podcast RSS feeds**, **direct media URL**
+  (.mp4/.m3u8), and **YouTube/Vimeo embeds** (iframe). — Legal, zero-storage; RSS fits
+  dub-deck's podcast identity, embeds are the sanctioned way to "use" YouTube.
+- **2026-07-07** — **yt-dlp scraping is a pluggable-but-inert seam**, not shipped active. The
+  Rust `resolve_scrape` command is gated behind an off-by-default `scrape` cargo feature and no
+  binary is installed here. — Scraping violates YouTube ToS + yields brittle, expiring,
+  IP-locked URLs; user wants the option available on another machine, not on this one.
+- **2026-07-07** — **Migration v3 is additive**: new `feeds` table + source columns on
+  `episodes`; `file_path` stays `NOT NULL` (remote rows store `''`). — Avoids a risky table
+  rebuild since `playlist_items` references `episodes`. `source_type` has no CHECK so adding
+  `scrape` later needs no migration.
+- **2026-07-07** — Fetch feeds/oEmbed **Rust-side via `tauri-plugin-http`** (`http:default`
+  scoped `https://**`), not webview `fetch`. — Bypasses browser CORS for arbitrary hosts.
+- **2026-07-07** — One shared **transport abstraction** in `Player.tsx`: native `<video>` and
+  the iframe adapter (`iframePlayer.ts`, YouTube IFrame API + `@vimeo/player`) expose the same
+  play/pause/seek/volume surface, so the custom controls work for both. hls.js handles `.m3u8`
+  (WebView2 has no native HLS). — Keeps the single-player UX across all source types.
+- **2026-07-07** — Cross-machine agent continuity lives in **git-tracked `.claude/docs/`**
+  (`decisions.md` + new `handoff.md`), never `~/.claude` memory (per-machine, doesn't sync).
+
 ## Portability
 - **2026-07-07** — Target **macOS + Windows** (Linux likely fine). Stack is cross-platform;
   no OS-specific code. The library (DB + video files) is **per-machine** — porting the code

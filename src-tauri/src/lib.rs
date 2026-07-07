@@ -91,6 +91,43 @@ fn read_media_tags(app: tauri::AppHandle, path: String) -> MediaTags {
     }
 }
 
+/// Extracted stream for a scraped source. Only compiled when the `scrape` feature
+/// is enabled (off by default — this machine ships no scrape backend).
+#[cfg(feature = "scrape")]
+#[derive(serde::Serialize)]
+struct ScrapeResult {
+    stream_url: String,
+    is_hls: bool,
+}
+
+/// Resolve a direct, playable stream URL from a watch URL using yt-dlp.
+///
+/// GATED behind the `scrape` cargo feature and OFF by default. Enabling it requires
+/// `yt-dlp` on PATH and violates some sites' ToS; the extracted URLs are typically
+/// IP-locked and short-lived. See `.claude/docs/handoff.md` before turning this on.
+#[cfg(feature = "scrape")]
+#[tauri::command]
+fn resolve_scrape(url: String) -> Result<ScrapeResult, String> {
+    let out = std::process::Command::new("yt-dlp")
+        .args(["-g", "-f", "best", &url])
+        .output()
+        .map_err(|e| format!("yt-dlp not runnable: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    let stream_url = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if stream_url.is_empty() {
+        return Err("yt-dlp returned no stream URL".into());
+    }
+    let is_hls = stream_url.contains(".m3u8");
+    Ok(ScrapeResult { stream_url, is_hls })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let migrations = vec![Migration {
@@ -152,10 +189,42 @@ pub fn run() {
             ALTER TABLE episodes ADD COLUMN original_title TEXT;
             ALTER TABLE episodes ADD COLUMN video_height INTEGER;
         ",
+        },
+        Migration {
+            version: 3,
+            description: "remote streaming sources: feeds table + source columns on episodes",
+            kind: MigrationKind::Up,
+            sql: "
+            CREATE TABLE IF NOT EXISTS feeds (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                show_id           INTEGER REFERENCES shows(id) ON DELETE SET NULL,
+                feed_url          TEXT NOT NULL UNIQUE,
+                title             TEXT,
+                site_url          TEXT,
+                thumbnail_url     TEXT,
+                last_refreshed_at TEXT,
+                created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            -- source_type keys every playback/UI decision; file_path stays NOT NULL
+            -- (remote episodes store '') to avoid a risky table rebuild. No CHECK on
+            -- source_type so a future 'scrape' value needs no migration.
+            ALTER TABLE episodes ADD COLUMN source_type   TEXT NOT NULL DEFAULT 'file';
+            ALTER TABLE episodes ADD COLUMN source_url    TEXT;
+            ALTER TABLE episodes ADD COLUMN thumbnail_url TEXT;
+            ALTER TABLE episodes ADD COLUMN feed_id       INTEGER REFERENCES feeds(id) ON DELETE SET NULL;
+            ALTER TABLE episodes ADD COLUMN guid          TEXT;
+
+            CREATE INDEX IF NOT EXISTS idx_episodes_feed        ON episodes(feed_id);
+            CREATE INDEX IF NOT EXISTS idx_episodes_source_type ON episodes(source_type);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_episodes_feed_guid
+                ON episodes(feed_id, guid) WHERE feed_id IS NOT NULL AND guid IS NOT NULL;
+        ",
     }];
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_sql::Builder::new()
@@ -175,8 +244,17 @@ pub fn run() {
             }
             write_log_line(&handle, "[startup] dub-deck launched");
             Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![read_media_tags, append_log])
+        });
+
+    // The scrape command is only registered when the (off-by-default) `scrape`
+    // feature is compiled in, so no scrape backend exists on a normal build.
+    #[cfg(feature = "scrape")]
+    let builder =
+        builder.invoke_handler(tauri::generate_handler![read_media_tags, append_log, resolve_scrape]);
+    #[cfg(not(feature = "scrape"))]
+    let builder = builder.invoke_handler(tauri::generate_handler![read_media_tags, append_log]);
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -6,11 +6,11 @@
 // A single <video> element is reused across both modes so playback never restarts.
 // Edit / delete / reveal live at the episode-list level, NOT here (see decisions.md).
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
+import Hls from "hls.js";
 import { usePlayer, useBumpLibrary, useLibraryVersion } from "../lib/state";
 import {
-  mediaSrc,
   toggleLike,
   toggleFavorite,
   setDuration,
@@ -19,8 +19,21 @@ import {
   createPlaylist,
   addToPlaylist,
 } from "../lib/db";
+import { resolveMedia, type ResolvedMedia } from "../lib/sources";
+import { createIframeAdapter, type IframeAdapter } from "../lib/iframePlayer";
+import { log } from "../lib/log";
 import type { Episode, Playlist } from "../types";
 import "./Player.css";
+
+/** Uniform playback control surface over the native <video> and (later) iframe embeds. */
+interface Transport {
+  play(): void;
+  pause(): void;
+  paused(): boolean;
+  seek(t: number): void;
+  setVolume(v: number): void;
+  setMuted(m: boolean): void;
+}
 
 const AUTO_HIDE_MS = 2500;
 
@@ -70,9 +83,13 @@ export default function Player(): JSX.Element | null {
   const version = useLibraryVersion();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const embedHostRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hideTimer = useRef<number | null>(null);
+  const transportRef = useRef<Transport | null>(null);
 
+  const [media, setMedia] = useState<ResolvedMedia | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [liked, setLiked] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [playing, setPlaying] = useState(true);
@@ -89,6 +106,120 @@ export default function Player(): JSX.Element | null {
 
   const currentId = current?.id ?? null;
   const showId = current?.show_id ?? null;
+  const isIframe = media?.kind === "iframe";
+
+  // Resolve the current episode into playable media (file/url/embed).
+  useEffect(() => {
+    if (!current) {
+      setMedia(null);
+      return;
+    }
+    let cancelled = false;
+    setMediaError(null);
+    resolveMedia(current)
+      .then((m) => {
+        if (!cancelled) setMedia(m);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setMedia(null);
+        setMediaError(String(e instanceof Error ? e.message : e));
+        log.warn("player: resolveMedia failed", { id: current.id, error: String(e) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [current, currentId]);
+
+  // Attach the native <video> source (hls.js for .m3u8 since WebView2 has no native HLS).
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !media || media.kind !== "native") return;
+    let hls: Hls | null = null;
+    const nativeHls = el.canPlayType("application/vnd.apple.mpegurl") !== "";
+    if (media.isHls && !nativeHls && Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(media.url);
+      hls.attachMedia(el);
+    } else {
+      el.src = media.url;
+    }
+    void el.play().catch(() => {});
+    return () => {
+      if (hls) hls.destroy();
+    };
+  }, [media]);
+
+  const nativeTransport = useMemo<Transport>(
+    () => ({
+      play: () => void videoRef.current?.play().catch(() => {}),
+      pause: () => videoRef.current?.pause(),
+      paused: () => videoRef.current?.paused ?? true,
+      seek: (t) => {
+        const el = videoRef.current;
+        if (el) el.currentTime = t;
+      },
+      setVolume: (v) => {
+        const el = videoRef.current;
+        if (el) {
+          el.volume = v;
+          el.muted = v === 0;
+        }
+      },
+      setMuted: (m) => {
+        const el = videoRef.current;
+        if (el) el.muted = m;
+      },
+    }),
+    []
+  );
+
+  // Native sources drive the transport through the <video> element.
+  useEffect(() => {
+    if (media?.kind === "native") transportRef.current = nativeTransport;
+  }, [media, nativeTransport]);
+
+  // Embed sources (youtube/vimeo) build a player into the host and expose the same
+  // transport surface; time/duration/play/ended feed back into the Player's state.
+  useEffect(() => {
+    if (!media || media.kind !== "iframe" || !media.provider || !media.videoId) return;
+    const host = embedHostRef.current;
+    if (!host) return;
+    let adapter: IframeAdapter | null = null;
+    let cancelled = false;
+    setTime(0);
+    setDur(0);
+    createIframeAdapter(media.provider, host, media.videoId, {
+      onTime: setTime,
+      onDuration: (d) => {
+        setDur(d);
+        if (currentId != null && current?.duration == null && Number.isFinite(d)) {
+          void setDuration(currentId, d);
+        }
+      },
+      onPlaying: setPlaying,
+      onEnded: next,
+    })
+      .then((a) => {
+        if (cancelled) {
+          a.destroy();
+          return;
+        }
+        adapter = a;
+        transportRef.current = a;
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setMediaError(String(e instanceof Error ? e.message : e));
+        log.warn("player: iframe adapter failed", { id: current?.id, error: String(e) });
+      });
+    return () => {
+      cancelled = true;
+      if (adapter) adapter.destroy();
+      if (transportRef.current === adapter) transportRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media, currentId]);
 
   useEffect(() => {
     if (!current) return;
@@ -113,7 +244,7 @@ export default function Player(): JSX.Element | null {
     setControlsVisible(true);
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => {
-      if (!videoRef.current?.paused) setControlsVisible(false);
+      if (!transportRef.current?.paused()) setControlsVisible(false);
     }, AUTO_HIDE_MS);
   }, []);
 
@@ -137,10 +268,10 @@ export default function Player(): JSX.Element | null {
   }, [currentId, bump]);
 
   const togglePlay = useCallback(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    if (el.paused) void el.play();
-    else el.pause();
+    const t = transportRef.current;
+    if (!t) return;
+    if (t.paused()) t.play();
+    else t.pause();
   }, []);
 
   const onLoadedMetadata = useCallback(() => {
@@ -153,26 +284,22 @@ export default function Player(): JSX.Element | null {
   }, [current, currentId]);
 
   const seek = useCallback((v: number) => {
-    const el = videoRef.current;
-    if (el) el.currentTime = v;
+    transportRef.current?.seek(v);
     setTime(v);
   }, []);
 
   const onVolume = useCallback((v: number) => {
-    const el = videoRef.current;
     setVolume(v);
-    if (el) {
-      el.volume = v;
-      el.muted = v === 0;
-    }
+    transportRef.current?.setVolume(v);
     setMuted(v === 0);
   }, []);
 
   const toggleMute = useCallback(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.muted = !el.muted;
-    setMuted(el.muted);
+    setMuted((m) => {
+      const next = !m;
+      transportRef.current?.setMuted(next);
+      return next;
+    });
   }, []);
 
   const toggleFullscreen = useCallback(() => {
@@ -210,17 +337,28 @@ export default function Player(): JSX.Element | null {
         onMouseMove={expanded ? bumpControls : undefined}
         onClick={expanded ? togglePlay : expand}
       >
+        {/* Native <video> stays mounted always (hidden for iframe sources) so
+            audio survives the mini/expanded toggle. src is set imperatively. */}
         <video
           ref={videoRef}
           className="ddp-video"
-          src={mediaSrc(current.file_path)}
-          autoPlay
+          style={isIframe ? { display: "none" } : undefined}
           onEnded={next}
           onLoadedMetadata={onLoadedMetadata}
           onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
           onPlay={() => { setPlaying(true); if (expanded) bumpControls(); }}
           onPause={() => { setPlaying(false); setControlsVisible(true); }}
         />
+
+        {/* Embed host: the iframe adapter (YouTube/Vimeo) builds its player inside. */}
+        {isIframe && <div ref={embedHostRef} className="ddp-video ddp-embed-host" />}
+
+        {mediaError && (
+          <div className="ddp-media-error">
+            <div>Can't play this source</div>
+            <div className="mute">{mediaError}</div>
+          </div>
+        )}
 
         {/* ---------- EXPANDED overlay ---------- */}
         {expanded && (
@@ -268,7 +406,8 @@ export default function Player(): JSX.Element | null {
                   <IconList />
                 </button>
 
-                {/* playback: play/pause + volume with slider */}
+                {/* playback: play/pause + volume with slider (drives the native
+                    <video> or the embed adapter through the shared transport) */}
                 <div className="ddp-group ddp-playback">
                   <button className="icon-btn ddp-play" onClick={togglePlay} title={playing ? "Pause" : "Play"}>
                     {playing ? <IconPause /> : <IconPlay />}

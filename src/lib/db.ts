@@ -10,6 +10,7 @@ import type {
   EpisodeFilter,
   EpisodeSort,
   NewEpisodeInput,
+  Feed,
 } from "../types";
 
 let _db: Database | null = null;
@@ -32,7 +33,12 @@ function normalizeEpisode(row: any): Episode {
     description: row.description ?? "",
     episode_number: row.episode_number ?? null,
     published_date: row.published_date ?? null,
-    file_path: row.file_path,
+    source_type: row.source_type ?? "file",
+    source_url: row.source_url ?? null,
+    thumbnail_url: row.thumbnail_url ?? null,
+    feed_id: row.feed_id ?? null,
+    guid: row.guid ?? null,
+    file_path: row.file_path ?? "",
     original_filename: row.original_filename ?? null,
     original_title: row.original_title ?? null,
     video_height: row.video_height ?? null,
@@ -85,16 +91,22 @@ export async function createEpisode(input: NewEpisodeInput): Promise<number> {
   const showId = await getOrCreateShow(input.showTitle);
   const res = await db.execute(
     `INSERT INTO episodes
-        (show_id, title, description, episode_number, published_date, file_path,
+        (show_id, title, description, episode_number, published_date,
+         source_type, source_url, thumbnail_url, feed_id, guid, file_path,
          original_filename, original_title, video_height, duration)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       showId,
       input.title.trim(),
       input.description ?? "",
       input.episode_number ?? null,
       input.published_date ?? null,
-      input.file_path,
+      input.source_type ?? "file",
+      input.source_url ?? null,
+      input.thumbnail_url ?? null,
+      input.feed_id ?? null,
+      input.guid ?? null,
+      input.file_path ?? "",
       input.original_filename ?? null,
       input.original_title ?? null,
       input.video_height ?? null,
@@ -272,6 +284,84 @@ export async function randomEpisode(showIds?: number[]): Promise<Episode | null>
     showIds ?? []
   );
   return rows.length ? normalizeEpisode(rows[0]) : null;
+}
+
+// ---------------------------------------------------------------- Feeds
+
+export async function listFeeds(): Promise<Feed[]> {
+  const db = await getDb();
+  return db.select<Feed[]>(
+    `SELECT f.*,
+            (SELECT COUNT(*) FROM episodes e WHERE e.feed_id = f.id) AS episode_count
+       FROM feeds f
+      ORDER BY f.title COLLATE NOCASE ASC, f.created_at DESC`
+  );
+}
+
+export async function getFeed(id: number): Promise<Feed | null> {
+  const db = await getDb();
+  const rows = await db.select<Feed[]>(`SELECT * FROM feeds WHERE id = ?`, [id]);
+  return rows.length ? rows[0] : null;
+}
+
+/** Find a feed by URL or create it; fills/refreshes known metadata. Returns its id. */
+export async function getOrCreateFeed(
+  feedUrl: string,
+  meta: {
+    title?: string | null;
+    site_url?: string | null;
+    thumbnail_url?: string | null;
+    show_id?: number | null;
+  } = {}
+): Promise<number> {
+  const db = await getDb();
+  const url = feedUrl.trim();
+  const existing = await db.select<{ id: number }[]>(
+    `SELECT id FROM feeds WHERE feed_url = ? LIMIT 1`,
+    [url]
+  );
+  if (existing.length) {
+    await db.execute(
+      `UPDATE feeds
+          SET title         = COALESCE(?, title),
+              site_url      = COALESCE(?, site_url),
+              thumbnail_url = COALESCE(?, thumbnail_url),
+              show_id       = COALESCE(?, show_id)
+        WHERE id = ?`,
+      [meta.title ?? null, meta.site_url ?? null, meta.thumbnail_url ?? null, meta.show_id ?? null, existing[0].id]
+    );
+    return existing[0].id;
+  }
+  const res = await db.execute(
+    `INSERT INTO feeds (feed_url, title, site_url, thumbnail_url, show_id) VALUES (?, ?, ?, ?, ?)`,
+    [url, meta.title ?? null, meta.site_url ?? null, meta.thumbnail_url ?? null, meta.show_id ?? null]
+  );
+  return res.lastInsertId as number;
+}
+
+export async function touchFeed(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute(`UPDATE feeds SET last_refreshed_at = datetime('now') WHERE id = ?`, [id]);
+}
+
+/** True if an episode with this (feed, guid) already exists — used to dedupe refreshes. */
+export async function feedEpisodeExists(feedId: number, guid: string): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db.select<{ id: number }[]>(
+    `SELECT id FROM episodes WHERE feed_id = ? AND guid = ? LIMIT 1`,
+    [feedId, guid]
+  );
+  return rows.length > 0;
+}
+
+/** Unsubscribe: remove the feed (and by default its episodes), then prune empty shows. */
+export async function deleteFeed(id: number, removeEpisodes = true): Promise<void> {
+  const db = await getDb();
+  if (removeEpisodes) {
+    await db.execute(`DELETE FROM episodes WHERE feed_id = ?`, [id]);
+  }
+  await db.execute(`DELETE FROM feeds WHERE id = ?`, [id]);
+  await db.execute(`DELETE FROM shows WHERE id NOT IN (SELECT DISTINCT show_id FROM episodes)`);
 }
 
 // ------------------------------------------------------------ Playlists

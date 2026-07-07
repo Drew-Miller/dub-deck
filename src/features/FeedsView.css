@@ -1,0 +1,23 @@
+/* Feeds (subscriptions) management view. */
+
+.feeds-view { padding: 22px 26px; }
+.feeds-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+.feeds-head h1 { font-size: 20px; margin: 0; }
+
+.feeds-status { padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
+.feeds-empty { padding: 40px 0; text-align: center; }
+
+.feeds-list { display: flex; flex-direction: column; gap: 10px; }
+.feed-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; }
+.feed-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+.feed-meta { min-width: 0; }
+.feed-title { font-size: 14px; font-weight: 600; }
+.feed-sub { font-size: 12px; }
+.feed-actions { gap: 8px; flex: 0 0 auto; }
+.feed-danger { color: var(--alarm, #ff5555); border-color: var(--alarm, #ff5555); }

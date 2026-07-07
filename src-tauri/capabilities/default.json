@@ -12,6 +12,10 @@
     "sql:default",
     "sql:allow-execute",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://**" }]
+    }
   ]
 }

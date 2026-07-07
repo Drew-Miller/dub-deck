@@ -258,9 +258,11 @@ export default function LibraryView(): JSX.Element {
                       <button role="menuitem" onClick={() => { setMenuFor(null); setEditing(ep); }}>
                         Edit metadata
                       </button>
-                      <button role="menuitem" onClick={() => onReveal(ep)}>
-                        Reveal in Finder
-                      </button>
+                      {ep.source_type === "file" && (
+                        <button role="menuitem" onClick={() => onReveal(ep)}>
+                          Reveal in Finder
+                        </button>
+                      )}
                       <button role="menuitem" className="row-menu-danger" onClick={() => onDelete(ep)}>
                         Delete episode
                       </button>

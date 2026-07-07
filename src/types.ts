@@ -8,6 +8,17 @@ export interface Show {
   episode_count?: number;
 }
 
+/** Where an episode's media comes from. `file` = local absolute path (default);
+ *  the rest are remote and use `source_url` instead. `scrape` resolves a stream
+ *  URL at play time via a pluggable resolver (yt-dlp on machines that enable it). */
+export type SourceType =
+  | "file"
+  | "direct_url"
+  | "rss"
+  | "youtube"
+  | "vimeo"
+  | "scrape";
+
 export interface Episode {
   id: number;
   show_id: number;
@@ -18,7 +29,17 @@ export interface Episode {
   episode_number: number | null;
   /** ISO 'YYYY-MM-DD' or null if unknown. */
   published_date: string | null;
-  /** Absolute path on disk. Referenced in place — never copied. */
+  /** Where the media comes from. Every playback/UI decision keys off this. */
+  source_type: SourceType;
+  /** Remote media/watch URL for non-`file` sources (null for local files). */
+  source_url: string | null;
+  /** Poster/thumbnail URL when known (feeds, oEmbed). */
+  thumbnail_url: string | null;
+  /** Owning subscription for `rss` episodes; null otherwise. */
+  feed_id: number | null;
+  /** Stable per-feed identifier used to dedupe on refresh. */
+  guid: string | null;
+  /** Absolute path on disk for `file` sources; '' for remote. Referenced, never copied. */
   file_path: string;
   /** Original filename (basename) — always tied to the file, even when other fields are derived. */
   original_filename: string | null;
@@ -73,9 +94,30 @@ export interface NewEpisodeInput {
   description?: string;
   episode_number?: number | null;
   published_date?: string | null;
-  file_path: string;
+  /** Defaults to 'file'. */
+  source_type?: SourceType;
+  source_url?: string | null;
+  thumbnail_url?: string | null;
+  feed_id?: number | null;
+  guid?: string | null;
+  /** Absolute path for `file` sources; omit/empty for remote. */
+  file_path?: string;
   original_filename?: string | null;
   original_title?: string | null;
   video_height?: number | null;
   duration?: number | null;
+}
+
+/** A subscribed remote feed (podcast RSS / Podcasting 2.0). */
+export interface Feed {
+  id: number;
+  show_id: number | null;
+  feed_url: string;
+  title: string | null;
+  site_url: string | null;
+  thumbnail_url: string | null;
+  last_refreshed_at: string | null;
+  created_at: string;
+  /** Populated by listFeeds(): number of episodes pulled from this feed. */
+  episode_count?: number;
 }

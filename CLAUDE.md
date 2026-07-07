@@ -1,8 +1,9 @@
 # CLAUDE.md — dub-deck
 
 Guidance for AI agents (and humans) working in this repo. Read this first, then
-`ARCHITECTURE.md` for the file/folder + data-location map, and
-**`.claude/docs/decisions.md`** for the running record of decisions.
+`ARCHITECTURE.md` for the file/folder + data-location map,
+**`.claude/docs/decisions.md`** for the running record of decisions, and
+**`.claude/docs/handoff.md`** for current task state + cross-machine test steps.
 
 > **Decision log — `.claude/docs/decisions.md`:** the canonical, durable record of every
 > non-obvious product/UX/architecture decision and *why*. Chat history isn't visible to a
@@ -32,6 +33,13 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
 **Core**
 - ✅ Desktop GUI app (not a website); play the user's own local video files, YouTube-style.
 - ✅ Import files already on disk; reference in place, never copy/move (disk-conscious).
+
+**Streaming / remote sources (zero-storage)**
+- ✅ Add **podcast RSS / Podcasting 2.0 feeds**: parse items → episodes; stream MP4/HLS enclosures.
+- ✅ Add a **direct media URL** (.mp4/.m3u8); HLS via hls.js (WebView2 has no native HLS).
+- ✅ Add **YouTube/Vimeo** watch URLs → iframe embed with shared transport controls.
+- 🔜 **yt-dlp scrape** is a wired-but-inert seam (off-by-default `scrape` cargo feature); not
+  installed here — enable on another machine per `.claude/docs/handoff.md`.
 
 **Organization / metadata**
 - ✅ Shows (podcasts) → episodes. Per-episode: show, episode #, title, description, date.
@@ -90,6 +98,13 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
 4. **Asset-protocol needs both** the `protocol-asset` Cargo feature (Cargo.toml) **and** an
    `assetProtocol.scope` entry (tauri.conf.json) covering the video's path, or playback fails.
 5. **App-defined Rust commands need no ACL entry** (only plugin commands do).
+6. **Remote fetch needs the `http:default` capability** (scoped `https://**` in
+   `capabilities/default.json`) + `tauri-plugin-http`. Feeds/oEmbed fetch Rust-side to bypass
+   webview CORS; without the grant, feed adds fail.
+7. **HLS (`.m3u8`) needs hls.js** — Windows WebView2 has no native HLS. `sources.ts` flags it;
+   `Player.tsx` attaches hls.js. Native HLS path only fires on macOS/Safari.
+8. **`csp: null`** in `tauri.conf.json` is required so remote `<video>` and YouTube/Vimeo
+   iframes load. Setting a CSP without `media-src`/`frame-src`/`connect-src` breaks streaming.
 
 ---
 
@@ -135,8 +150,11 @@ npm run tauri build    # native bundle
 
 - Full-window **Now Playing** player (auto-hiding overlay controls, back arrow, side drawer
   of the show's episodes) + Apple-Music **mini bar** (controls only; video hidden, audio continues).
-- Edit / Delete / Reveal moved to a **per-row ⋯ menu** in the library.
+- Edit / Delete / Reveal moved to a **per-row ⋯ menu** in the library (Reveal only for `file` sources).
 - Metadata capture (original filename/title, duration, resolution) via migration v2.
+- **Remote streaming sources** (migration v3): RSS feeds, direct URL, YouTube/Vimeo embeds;
+  `sources.ts`/`remoteSources.ts`/`iframePlayer.ts`, `AddSourceDialog` + `FeedsView`, fetch via
+  `tauri-plugin-http`. yt-dlp scrape seam present but inert. See `.claude/docs/handoff.md`.
 
 ## Next up
 

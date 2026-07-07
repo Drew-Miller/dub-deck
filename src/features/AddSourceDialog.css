@@ -1,0 +1,28 @@
+/* Add-source dialog: mode tabs + hint. Reuses the modal shell from EditEpisodeDialog.css. */
+
+.add-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 14px;
+}
+.add-tab {
+  flex: 1 1 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.add-tab:hover:not(:disabled) { color: var(--text); }
+.add-tab.active {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.add-tab:disabled { opacity: 0.5; cursor: default; }
+
+.add-hint { font-size: 12px; margin: 8px 2px 4px; }

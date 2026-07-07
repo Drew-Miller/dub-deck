@@ -45,19 +45,25 @@ dub-deck/
 │   ├── types.ts               ← shared domain types (Show, Episode, Playlist, filters)
 │   │
 │   ├── lib/
-│   │   ├── db.ts              ← TYPED DATA-ACCESS API (only place SQL is called)
+│   │   ├── db.ts              ← TYPED DATA-ACCESS API (only place SQL is called); + feed CRUD
 │   │   ├── importer.ts        ← one-click auto-import: pick files → parse tags → createEpisode
+│   │   ├── sources.ts         ← source abstraction: playbackKind + resolveMedia + scrape seam
+│   │   ├── remoteSources.ts   ← ingest remote sources (direct URL / youtube-vimeo / RSS feed)
+│   │   ├── iframePlayer.ts    ← YouTube IFrame API + @vimeo/player adapter (embed transport)
+│   │   ├── scrapeBackend.ts   ← OPTIONAL yt-dlp drop-in (not wired here; see handoff.md)
 │   │   ├── log.ts             ← frontend logger → Rust `append_log`
 │   │   └── state.tsx          ← app state: player queue + library-refresh signal
 │   │
 │   └── features/              ← component + its CSS per feature
 │       ├── EditEpisodeDialog.tsx/.css ← edit/delete episode metadata
-│       ├── Player.tsx/.css            ← docked video player + like/fav/playlist controls
-│       ├── LibraryView.tsx/.css       ← episode list; hosts FilterBar (+ currently an edit dialog)
+│       ├── AddSourceDialog.tsx/.css   ← add feed / direct URL / youtube-vimeo source
+│       ├── Player.tsx/.css            ← full-window player (native <video> + iframe embeds), mini bar
+│       ├── LibraryView.tsx/.css       ← episode list; per-row ⋯ menu (Reveal only for file sources)
 │       ├── FilterBar.tsx              ← search + year/month/episode-range/like filters
 │       ├── PlaylistsView.tsx          ← playlist CRUD + play
 │       ├── FavoritesView.tsx          ← Liked / Favorites tabs
 │       ├── ShuffleView.tsx            ← random play across selected shows
+│       ├── FeedsView.tsx/.css         ← podcast subscriptions: refresh / unsubscribe
 │       └── Sidebars.css               ← shared styles for Playlists/Favorites/Shuffle
 │       (ImportDialog.* was removed — import is now one-click via lib/importer.ts)
 │
@@ -81,8 +87,11 @@ dub-deck/
 |---|---|
 | `read_media_tags(path)` | Read embedded `title` / `artist` / `duration` from an MP4-family file (via `mp4ameta`). Powers import auto-fill. |
 | `append_log(line)` | Persist one pre-formatted log line; enforces the 250 MB cap on every write. |
+| `resolve_scrape(url)` | **GATED** behind the off-by-default `scrape` cargo feature. Runs `yt-dlp -g` to extract a stream URL. Not compiled/registered on a normal build. |
 
 App-defined commands do **not** need ACL/capability entries (only *plugin* commands do).
+Remote fetching (feeds, oEmbed) uses **`tauri-plugin-http`** (Rust-side `fetch`, bypasses
+webview CORS); its capability grant is `http:default` scoped to `https://**` in `default.json`.
 
 ---
 
@@ -92,10 +101,19 @@ App-defined commands do **not** need ACL/capability entries (only *plugin* comma
 shows           (id, title, created_at)
 episodes        (id, show_id→shows, title, description, episode_number,
                  published_date 'YYYY-MM-DD', file_path, duration,
-                 liked, favorited, liked_at, favorited_at, added_at)
+                 liked, favorited, liked_at, favorited_at, added_at,
+                 original_filename, original_title, video_height,   -- v2
+                 source_type, source_url, thumbnail_url, feed_id→feeds, guid)  -- v3
+feeds           (id, show_id→shows, feed_url UNIQUE, title, site_url,          -- v3
+                 thumbnail_url, last_refreshed_at, created_at)
 playlists       (id, name, created_at)
 playlist_items  (playlist_id→playlists, episode_id→episodes, position, added_at)
 ```
+
+**Source of media (`source_type`)** keys every playback/UI decision:
+`file` (local `file_path`) · `direct_url` / `rss` (stream `source_url` in native `<video>`) ·
+`youtube` / `vimeo` (iframe embed) · `scrape` (resolved at play time; inert by default).
+Remote episodes keep `file_path = ''`; it stays `NOT NULL` to avoid a risky table rebuild.
 
 Schema changes = add a new `Migration { version: N, ... }` in `lib.rs`; never edit an
 already-applied version.
