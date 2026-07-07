@@ -1,0 +1,42 @@
+# Normalize line endings: store LF in the repo, checkout LF everywhere.
+# Keeps macOS/Windows development from creating spurious CRLF/LF diffs.
+* text=auto eol=lf
+
+# Windows scripts must stay CRLF to run correctly.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Explicit text types (source + config)
+*.ts    text
+*.tsx   text
+*.js    text
+*.jsx   text
+*.json  text
+*.css   text
+*.html  text
+*.md    text
+*.rs    text
+*.toml  text
+*.yml   text
+*.yaml  text
+*.txt   text
+
+# Binary assets — never touch line endings or try to diff.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.icns  binary
+*.svg   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.mp4   binary
+*.mkv   binary
+*.mov   binary
+*.webm  binary
+*.avi   binary
+*.m4v   binary
+*.dmg   binary
