@@ -7,7 +7,7 @@
 //   2. Build the app with the cargo feature:  npm run tauri dev -- --features scrape
 //      (or add `scrape` to a default feature set in src-tauri/Cargo.toml).
 //   3. Call `enableYtDlpScrape()` once at startup (e.g. in src/main.tsx).
-// See .claude/docs/handoff.md for the full walkthrough and caveats.
+// See docs/handoff.md for the full walkthrough and caveats.
 
 import { invoke } from "@tauri-apps/api/core";
 import { registerScrapeResolver } from "./sources";

@@ -104,7 +104,7 @@ struct ScrapeResult {
 ///
 /// GATED behind the `scrape` cargo feature and OFF by default. Enabling it requires
 /// `yt-dlp` on PATH and violates some sites' ToS; the extracted URLs are typically
-/// IP-locked and short-lived. See `.claude/docs/handoff.md` before turning this on.
+/// IP-locked and short-lived. See `docs/handoff.md` before turning this on.
 #[cfg(feature = "scrape")]
 #[tauri::command]
 fn resolve_scrape(url: String) -> Result<ScrapeResult, String> {

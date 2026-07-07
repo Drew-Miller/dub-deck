@@ -82,7 +82,7 @@ let scrapeResolver: ScrapeResolver = {
 };
 
 /** Install a scrape backend (e.g. one that invokes yt-dlp via a Rust command).
- *  See .claude/docs/handoff.md for enabling this on a machine that allows it. */
+ *  See docs/handoff.md for enabling this on a machine that allows it. */
 export function registerScrapeResolver(r: ScrapeResolver): void {
   scrapeResolver = r;
 }

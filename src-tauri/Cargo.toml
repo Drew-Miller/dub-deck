@@ -31,6 +31,6 @@ mp4 = "0.14"
 
 [features]
 # OFF by default. Enables the yt-dlp-backed `resolve_scrape` command. Requires
-# yt-dlp on PATH. See .claude/docs/handoff.md. Build with: --features scrape
+# yt-dlp on PATH. See docs/handoff.md. Build with: --features scrape
 scrape = []
 

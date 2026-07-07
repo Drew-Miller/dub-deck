@@ -102,7 +102,7 @@ Rust is a **build-time dependency only** — the shipped app doesn't need it.
 - Line endings: a `.gitattributes` isn't required, but if you develop on both OSes and see
   churn, consider adding one.
 
-See **`ARCHITECTURE.md`** for the full file/folder map and **`.claude/docs/decisions.md`**
+See **`docs/ARCHITECTURE.md`** for the full file/folder map and **`docs/decisions.md`**
 for the running record of design decisions.
 
 ## Supported video formats

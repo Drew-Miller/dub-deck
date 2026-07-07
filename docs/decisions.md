@@ -110,8 +110,14 @@ Dates are absolute. Format: `YYYY-MM-DD — decision — why`.
   the iframe adapter (`iframePlayer.ts`, YouTube IFrame API + `@vimeo/player`) expose the same
   play/pause/seek/volume surface, so the custom controls work for both. hls.js handles `.m3u8`
   (WebView2 has no native HLS). — Keeps the single-player UX across all source types.
-- **2026-07-07** — Cross-machine agent continuity lives in **git-tracked `.claude/docs/`**
-  (`decisions.md` + new `handoff.md`), never `~/.claude` memory (per-machine, doesn't sync).
+- **2026-07-07** — Cross-machine agent continuity lives in **git-tracked project docs**
+  (`decisions.md` + `handoff.md`), never `~/.claude` memory (per-machine, doesn't sync).
+
+## Docs layout
+- **2026-07-07** — All living docs (`ARCHITECTURE.md`, `decisions.md`, `handoff.md`) live in a
+  root **`docs/`** folder (moved out of `.claude/docs/`). `CLAUDE.md` stays at root (Claude Code
+  auto-loads it) and `README.md` stays at root (GitHub convention). — Discoverable, conventional
+  location; keeps `.claude/` for tooling/config, not prose.
 
 ## Portability
 - **2026-07-07** — Target **macOS + Windows** (Linux likely fine). Stack is cross-platform;

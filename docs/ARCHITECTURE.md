@@ -28,9 +28,12 @@ distinct locations are in play:
 
 ```
 dub-deck/
-├── CLAUDE.md                  ← agent-facing brief (decisions, requirements, gotchas)
-├── ARCHITECTURE.md            ← this file
+├── CLAUDE.md                  ← agent-facing brief (auto-loaded from root; requirements, gotchas)
 ├── README.md                  ← project overview & requirements checklist
+├── docs/                      ← project documentation (living docs)
+│   ├── ARCHITECTURE.md        ← this file — file/folder + data-location map
+│   ├── decisions.md           ← durable decision log (what + why, dated)
+│   └── handoff.md             ← current task state + cross-machine test steps
 ├── index.html                 ← Vite HTML entry
 ├── package.json / vite.config.ts / tsconfig*.json
 │

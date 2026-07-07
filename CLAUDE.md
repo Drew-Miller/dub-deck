@@ -1,11 +1,11 @@
 # CLAUDE.md — dub-deck
 
 Guidance for AI agents (and humans) working in this repo. Read this first, then
-`ARCHITECTURE.md` for the file/folder + data-location map,
-**`.claude/docs/decisions.md`** for the running record of decisions, and
-**`.claude/docs/handoff.md`** for current task state + cross-machine test steps.
+`docs/ARCHITECTURE.md` for the file/folder + data-location map,
+**`docs/decisions.md`** for the running record of decisions, and
+**`docs/handoff.md`** for current task state + cross-machine test steps.
 
-> **Decision log — `.claude/docs/decisions.md`:** the canonical, durable record of every
+> **Decision log — `docs/decisions.md`:** the canonical, durable record of every
 > non-obvious product/UX/architecture decision and *why*. Chat history isn't visible to a
 > fresh agent, so this file is how decisions survive across sessions. **Read it at the start
 > of every task, and append any new decision made in conversation** (decision + reason + date).
@@ -39,7 +39,7 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
 - ✅ Add a **direct media URL** (.mp4/.m3u8); HLS via hls.js (WebView2 has no native HLS).
 - ✅ Add **YouTube/Vimeo** watch URLs → iframe embed with shared transport controls.
 - 🔜 **yt-dlp scrape** is a wired-but-inert seam (off-by-default `scrape` cargo feature); not
-  installed here — enable on another machine per `.claude/docs/handoff.md`.
+  installed here — enable on another machine per `docs/handoff.md`.
 
 **Organization / metadata**
 - ✅ Shows (podcasts) → episodes. Per-episode: show, episode #, title, description, date.
@@ -154,7 +154,7 @@ npm run tauri build    # native bundle
 - Metadata capture (original filename/title, duration, resolution) via migration v2.
 - **Remote streaming sources** (migration v3): RSS feeds, direct URL, YouTube/Vimeo embeds;
   `sources.ts`/`remoteSources.ts`/`iframePlayer.ts`, `AddSourceDialog` + `FeedsView`, fetch via
-  `tauri-plugin-http`. yt-dlp scrape seam present but inert. See `.claude/docs/handoff.md`.
+  `tauri-plugin-http`. yt-dlp scrape seam present but inert. See `docs/handoff.md`.
 
 ## Next up
 
@@ -162,4 +162,4 @@ npm run tauri build    # native bundle
 2. 🔜 Optional YouTube Data API enrichment (URL / description / air-date; needs a key).
 3. 🔜 "Relink" flow for moved/renamed files.
 
-Keep this file, `ARCHITECTURE.md`, and `.claude/docs/decisions.md` updated as decisions land.
+Keep this file, `docs/ARCHITECTURE.md`, and `docs/decisions.md` updated as decisions land.
