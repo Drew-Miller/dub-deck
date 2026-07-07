@@ -26,3 +26,12 @@ media/*
 *.njsproj
 *.sln
 *.sw?
+
+# OS files (cross-platform: macOS + Windows)
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Personal, machine-local Claude settings (keep decisions.md tracked)
+.claude/settings.local.json
