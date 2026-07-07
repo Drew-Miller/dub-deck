@@ -123,12 +123,25 @@ npm run tauri build    # native bundle
 
 ---
 
-## Current work / next up
+## Cross-platform (macOS + Windows)
 
-1. 💬 **Confirm metadata set to store** (firm: original filename, original title, duration;
-   optional: resolution, file size). Then add a migration + fill at import.
-2. 🔜 **iTunes-style library detail panel** (bottom dock): row-click → detail (not autoplay),
-   Play button, ⋯ menu with Edit/…; keep list visible above. Replaces the per-row edit button.
-3. 🔜 Folder-scan import; optional YouTube Data API enrichment (URL/description/date).
+- Stack is fully cross-platform; no OS-specific code. App-data/log paths resolve per-OS via Tauri.
+- The **library is per-machine** (DB + video files are local). Porting the *code* transfers; videos are re-imported per machine.
+- **Playback scope** (`tauri.conf.json → assetProtocol.scope`) uses `$HOME/**` (covers the user
+  profile on every OS). For videos on other Windows drives, add e.g. `"D:/**"`.
+- **Windows dev prereqs:** MSVC C++ Build Tools + WebView2 runtime, plus Node + Rust.
 
-Keep this file and `ARCHITECTURE.md` updated as decisions land.
+## Done (shipped)
+
+- Full-window **Now Playing** player (auto-hiding overlay controls, back arrow, side drawer
+  of the show's episodes) + Apple-Music **mini bar** (controls only; video hidden, audio continues).
+- Edit / Delete / Reveal moved to a **per-row ⋯ menu** in the library.
+- Metadata capture (original filename/title, duration, resolution) via migration v2.
+
+## Next up
+
+1. 🔜 Folder-scan import (pick a directory).
+2. 🔜 Optional YouTube Data API enrichment (URL / description / air-date; needs a key).
+3. 🔜 "Relink" flow for moved/renamed files.
+
+Keep this file, `ARCHITECTURE.md`, and `.claude/docs/decisions.md` updated as decisions land.

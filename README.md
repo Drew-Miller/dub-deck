@@ -1,97 +1,109 @@
 # dub-deck 🔀📼
 
-A **local desktop podcast/video player** — think a personal YouTube for the video
-files already on your computer. Import your own video files, organize them into shows
-and episodes, search and filter deeply, and like / favorite / playlist them while they
-play. Styled with a warm **retro hi-fi / cassette-deck** look (amber LED accents,
-monospace episode counters).
+A **local desktop podcast/video player** — a personal "YouTube" for the video files
+you already have on disk. Import your own videos, organize them into shows and episodes,
+search and filter deeply, and like / favorite / playlist them while they play.
+Themed as a **"Dead Terminal"** sci-fi-horror console (cold black, phosphor-green
+readouts, blood-red alarms, monospace, CRT scanlines).
 
 Built with **Tauri** (Rust desktop shell) + **React + TypeScript** + **SQLite**.
+Cross-platform: **macOS** and **Windows** (Linux should work too).
 
 ---
 
-## Requirements (as specified)
+## Features
 
-This is the running list of what dub-deck is meant to do, captured from the project
-brief. ✅ = built, 🔜 = planned.
-
-### Core concept
-- ✅ A **desktop GUI app** (installed program), not a website.
-- ✅ Play **your own local video files** in a **YouTube-style player** (they are *not*
-  YouTube links — actual files on disk).
-- ✅ **Import** files that already live on your computer, then browse/play them in-app.
-- ✅ **Storage-conscious**: reference video files **in place — never copy or move them**,
-  because a user's disk may not hold a large library. Only tiny metadata is stored.
-
-### Organization
-- ✅ **Shows** (podcasts) and **episodes** under them.
-- ✅ Per-episode metadata: **show, episode number, title, description, date**.
-- ✅ **Edit** any episode's metadata after import (and delete episodes).
-
-### Search & filtering
-- ✅ **Search by title or description** (description captured at import).
-- ✅ **Filter by year** (2017, 2018, 2020 …).
-- ✅ **Filter by date range down to month** (2020 NOV, 2020 DEC …).
-- ✅ **Filter by episode range in buckets of 100** (1–100, 100–200, 200–300 …).
-- ✅ Filter by **Liked** / **Favorited**, plus sorting.
-
-### Playback & collections (Spotify / Apple Music style)
-- ✅ **Like** episodes.
-- ✅ **Favorite** episodes.
-- ✅ **Make playlists** and add episodes to them.
-- ✅ Do all of the above **while the episode is playing**, from the player.
-
-### Discovery
-- ✅ **Random / shuffle play** an episode across **multiple shows** at once (choose which
-  shows are in the mix, or shuffle everything; also build a shuffled queue of N).
-
-### Import
-- ✅ Import **individual files**.
-- 🔜 Import a **whole folder** (scan a directory for videos).
-
-### Look & feel
-- ✅ Distinct **retro hi-fi** aesthetic (deliberately *not* Apple Music).
+- ✅ **Desktop app** that plays your **own local video files** (not YouTube links).
+- ✅ **One-click import** — pick files and they import instantly; show, title, and episode
+  number are auto-derived from each file's embedded tags. Files are **referenced in place,
+  never copied** (a big library costs ~0 extra disk).
+- ✅ **Shows → episodes**, with metadata: original filename, title, episode #, date,
+  description, duration, resolution. **Edit / Delete / Reveal-in-Finder** via a per-row ⋯ menu.
+- ✅ **Search** by title or description; **filter** by year, month (e.g. "2020 NOV"),
+  episode-number buckets of 100 (1–100, 100–200…), liked/favorited; sort by episode/date/title.
+- ✅ **Now Playing** — clicking an episode opens a **full-window video** with auto-hiding
+  overlay controls, a back arrow, and the show's other episodes in a side drawer.
+- ✅ **Mini bar** — collapsing keeps playing as an Apple-Music-style bottom bar (**audio +
+  controls only**; video is viewed in the full player).
+- ✅ **Like / Favorite / Playlists** from the player; **Liked & Favorites** views.
+- ✅ **Shuffle** random play across any mix of shows (or a shuffled queue of N).
+- 🔜 Folder-scan import; optional YouTube Data API enrichment (URL/description/air-date).
 
 ---
 
-## Why it won't fill up your disk
+## Where your data lives
 
-Three separate things live in three places (see `ARCHITECTURE.md`):
+dub-deck **references video files in place** — only lightweight metadata is stored.
 
-| | Where | Holds |
+| What | Location | Holds |
 |---|---|---|
-| Your videos | `media/` (or anywhere on disk) | the actual files — referenced, never copied |
-| Metadata DB | `~/Library/Application Support/com.dubdeck.app/dubdeck.db` | titles, descriptions, likes, playlists, **file paths** |
-| — | | (no video bytes are ever duplicated) |
+| Your videos | `media/` or anywhere on disk | the actual files (referenced, never copied) |
+| Metadata DB (**SQLite**) | see per-OS path below | shows, episodes, likes, playlists, **file paths** |
+| Logs (250 MB cap) | `<app-data>/logs/dub-deck.log` | diagnostics + import metrics |
 
-> Trade-off (same as Plex/iTunes): if you move or rename an original file after import,
-> that episode's link breaks and needs re-importing/editing.
+Per-OS app-data folder (`com.dubdeck.app`):
+- **macOS:** `~/Library/Application Support/com.dubdeck.app/dubdeck.db`
+- **Windows:** `%APPDATA%\com.dubdeck.app\dubdeck.db`
+- **Linux:** `~/.local/share/com.dubdeck.app/dubdeck.db`
+
+> Trade-off (like Plex/iTunes): move or rename an original file after import and that
+> episode's link breaks — re-import or edit it.
 
 ---
 
-## Getting started
+## Develop
 
-1. Put video files anywhere (a convenient spot is `~/Developer/dub-deck/media/`).
-2. Run the app (below).
-3. Click **＋ Import episodes**, choose your files, fill in show/number/title/date/description.
-4. Click an episode to play. Use ♥ like, ★ favorite, ＋ add-to-playlist while it plays.
-5. Explore **Library** (search + filters), **Shuffle**, **Playlists**, **Liked & Favorites**.
+### Prerequisites (both platforms)
+- **Node.js** 18+ (this repo used v24)
+- **Rust** (stable) via [rustup](https://rustup.rs)
 
-## Run
+### macOS extras
+- Xcode Command Line Tools: `xcode-select --install`
 
+### Windows extras
+- **Microsoft C++ Build Tools** (the "Desktop development with C++" workload)
+- **WebView2 runtime** (preinstalled on Windows 11; otherwise install from Microsoft)
+- Use PowerShell or Windows Terminal.
+
+### Run it
 ```bash
-cd ~/Developer/dub-deck
-npm run tauri dev      # desktop app, dev mode with hot reload
-npm run tauri build    # produce a native .app bundle
+git clone <your-repo-url> dub-deck
+cd dub-deck
+npm install
+npm run tauri dev      # launches the desktop app with hot reload
 ```
 
-Requires the Rust toolchain (via rustup) and Node.js. Rust is a **build-time
-dependency only** — the shipped app doesn't need it.
+### Build a distributable
+```bash
+npm run tauri build
+# macOS   → src-tauri/target/release/bundle/macos/dub-deck.app (+ .dmg)
+# Windows → src-tauri/target/release/bundle/{msi,nsis}/*.msi / *-setup.exe
+```
+Rust is a **build-time dependency only** — the shipped app doesn't need it.
 
-## Learn more
+### Launch shortcut
+- **macOS:** a `dub-deck` shell function (in `~/.zshrc`) opens the built app if present,
+  else runs dev. (Personal to your machine, not in the repo.)
+- **Windows:** run the installed app, or `npm run tauri dev` from the repo.
 
-- **`ARCHITECTURE.md`** — full file/folder map, data model, and storage locations.
+---
+
+## Cross-platform / porting notes (Windows)
+
+- The whole stack (Tauri, the Rust `mp4`/`mp4ameta` crates, the SQL/dialog/fs/opener
+  plugins) is cross-platform; no macOS-only code. App-data & log paths resolve correctly
+  per-OS via Tauri.
+- The **library is per-machine** (the DB and your video files live locally). Porting the
+  **code** is what transfers; you re-import your videos on each machine.
+- **Playback scope:** `src-tauri/tauri.conf.json → app.security.assetProtocol.scope`
+  controls which disk paths may be streamed. It includes `$HOME/**` (covers your user
+  profile on every OS, e.g. `C:\Users\you\**` on Windows). If your videos live on another
+  drive (e.g. `D:\`), add an entry like `"D:/**"` there.
+- Line endings: a `.gitattributes` isn't required, but if you develop on both OSes and see
+  churn, consider adding one.
+
+See **`ARCHITECTURE.md`** for the full file/folder map and **`.claude/docs/decisions.md`**
+for the running record of design decisions.
 
 ## Supported video formats
-
-`.mp4 .mkv .mov .webm .avi .m4v`
+`.mp4 .mkv .mov .webm .avi .m4v` — embedded-tag auto-fill works for MP4-family files.

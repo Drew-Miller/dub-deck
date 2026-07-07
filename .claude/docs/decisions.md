@@ -74,3 +74,24 @@ Dates are absolute. Format: `YYYY-MM-DD — decision — why`.
 - **2026-07-07** — `sql:allow-execute` must be granted in capabilities or all writes fail
   silently. — Root cause of the "nothing imported" bug.
 - **2026-07-07** — Moving the project invalidates `src-tauri/target/`; run `cargo clean` after a move.
+
+## Tooling
+- **2026-07-07** — A **`dub-deck` zsh function** in `~/.zshrc` launches the GUI from any
+  directory: opens the release `.app` if built, else runs `npm run tauri dev`. — The user
+  wanted a profile-level CLI command to open the app.
+- **2026-07-07** — When the dev webview shows a **stale UI**, the fix is to clear
+  `node_modules/.vite` + `dist` and restart, or build/run the release app (loads over
+  `tauri://`, no dev-server HTTP cache). Verified the Vite dev server was serving correct
+  code — the staleness was purely webview-side caching.
+
+## Player (cont.)
+- **2026-07-07** — The **mini bar shows controls only, no video** (the `<video>` stays
+  mounted and hidden so audio continues and re-expanding is seamless). The full player is
+  where the user watches. — User request.
+
+## Portability
+- **2026-07-07** — Target **macOS + Windows** (Linux likely fine). Stack is cross-platform;
+  no OS-specific code. The library (DB + video files) is **per-machine** — porting the code
+  transfers, videos are re-imported per machine. Asset-protocol scope uses `$HOME/**`
+  (covers the user profile on all OSes); add drive roots (e.g. `D:/**`) for other Windows drives.
+  Windows dev needs MSVC C++ Build Tools + WebView2. — User will continue dev on a Windows machine.

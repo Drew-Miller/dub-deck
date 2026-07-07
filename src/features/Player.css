@@ -184,17 +184,18 @@
   border-top: 1px solid var(--border-solid);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
 }
+/* Mini bar = controls only. The <video> stays mounted (audio keeps playing and
+   re-expanding is seamless) but is hidden — the user views video in the full player. */
 .ddp-mini .ddp-stage {
-  flex: 0 0 auto;
-  width: 108px;
-  height: 60px;
-  border-radius: 4px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
   overflow: hidden;
-  background: #000;
-  cursor: pointer;
-  border: 1px solid var(--border-solid);
 }
-.ddp-mini .ddp-video { width: 100%; height: 100%; object-fit: cover; }
+.ddp-minibar { flex: 1 1 auto; display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ddp-minibar .ddp-actions { gap: 18px; }
 .ddp-mini-meta { min-width: 0; cursor: pointer; }
 .ddp-mini-title { font-size: 13px; font-weight: 600; }
 .ddp-mini-show { font-size: 11px; }
