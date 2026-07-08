@@ -1,22 +1,20 @@
-// Drop-in scrape backend — NOT wired on this machine.
-//
-// This machine ships no scrape backend: the Rust `resolve_scrape` command is gated
-// behind the off-by-default `scrape` cargo feature, and nothing calls the function
-// below. To enable yt-dlp scraping on a machine that allows it:
-//   1. Install yt-dlp on PATH.
-//   2. Build the app with the cargo feature:  npm run tauri dev -- --features scrape
-//      (or add `scrape` to a default feature set in src-tauri/Cargo.toml).
-//   3. Call `enableYtDlpScrape()` once at startup (e.g. in src/main.tsx).
-// See docs/handoff.md for the full walkthrough and caveats.
+// Runtime scrape backend. Registered at startup; it reads the user-configured
+// yt-dlp path from Settings each call and resolves a playable stream URL via the
+// Rust `resolve_scrape` command. If yt-dlp isn't configured, the command errors
+// clearly ("Enable yt-dlp in Settings") — nothing is installed by dub-deck.
 
 import { invoke } from "@tauri-apps/api/core";
 import { registerScrapeResolver } from "./sources";
+import { getSetting } from "./db";
+import { SETTING_KEYS } from "./downloads";
 
 export function enableYtDlpScrape(): void {
   registerScrapeResolver({
     resolve: async (sourceUrl: string) => {
+      const ytdlp = (await getSetting(SETTING_KEYS.ytdlp)) ?? "";
       const r = await invoke<{ stream_url: string; is_hls: boolean }>("resolve_scrape", {
         url: sourceUrl,
+        ytdlp,
       });
       return { streamUrl: r.stream_url, isHls: r.is_hls };
     },

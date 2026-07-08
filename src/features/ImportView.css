@@ -1,0 +1,49 @@
+/* Import view: local + web source cards. */
+
+.import-view { padding: 22px 26px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.import-title { font-size: 22px; margin: 0 0 2px; }
+
+.import-status { padding: 10px 14px; font-size: 13px; }
+
+.import-card { padding: 18px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.import-card h3 { margin: 0; font-size: 15px; }
+.import-card .mute { font-size: 13px; }
+
+.add-tabs { display: flex; gap: 6px; width: 100%; }
+.add-tab {
+  flex: 1 1 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.add-tab:hover:not(:disabled) { color: var(--text); }
+.add-tab.active { color: var(--bg); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.add-tab:disabled { opacity: 0.5; cursor: default; }
+
+.import-url {
+  width: 100%;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-solid);
+  border-radius: 999px;
+}
+.import-url:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(87, 217, 138, 0.2); }
+.import-url input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  font-size: 15px;
+}
+.import-hint { font-size: 12px; margin: 0; }
+.import-note { font-size: 12px; }

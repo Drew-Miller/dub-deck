@@ -12,7 +12,6 @@ export interface FilterState {
   month?: number;
   /** Inclusive-looking [min, max] bucket label range, e.g. [100, 200]. */
   episodeBucket?: [number, number];
-  likedOnly: boolean;
   favoritedOnly: boolean;
   sort: EpisodeSort;
 }
@@ -93,6 +92,36 @@ export default function FilterBar({
 
   return (
     <div className="filterbar">
+      {/* Search + sort (top) */}
+      <div className="filter-group filter-top">
+        <div className="filter-search-wrap grow">
+          <svg className="filter-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
+          </svg>
+          <input
+            className="filter-search"
+            type="search"
+            placeholder="Search title or description…"
+            value={value.search}
+            onChange={(e) => set({ search: e.target.value })}
+          />
+        </div>
+        <label className="row sort-select">
+          <span className="filter-label">Sort</span>
+          <select
+            value={value.sort}
+            onChange={(e) => set({ sort: e.target.value as EpisodeSort })}
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       {/* Shows */}
       <div className="filter-group">
         <span className="filter-label">Shows</span>
@@ -116,32 +145,6 @@ export default function FilterBar({
               ) : null}
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* Search + sort */}
-      <div className="filter-group">
-        <div className="row spread">
-          <input
-            className="grow filter-search"
-            type="search"
-            placeholder="Search title or description…"
-            value={value.search}
-            onChange={(e) => set({ search: e.target.value })}
-          />
-          <label className="row sort-select">
-            <span className="filter-label">Sort</span>
-            <select
-              value={value.sort}
-              onChange={(e) => set({ sort: e.target.value as EpisodeSort })}
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
       </div>
 
@@ -208,20 +211,14 @@ export default function FilterBar({
         </div>
       )}
 
-      {/* Boolean toggles */}
+      {/* Favorites toggle */}
       <div className="filter-group">
         <div className="row wrap">
-          <button
-            className={`chip${value.likedOnly ? " active" : ""}`}
-            onClick={() => set({ likedOnly: !value.likedOnly })}
-          >
-            {"♥"} Liked
-          </button>
           <button
             className={`chip${value.favoritedOnly ? " active" : ""}`}
             onClick={() => set({ favoritedOnly: !value.favoritedOnly })}
           >
-            {"★"} Favorited
+            {"♥"} Favorites
           </button>
         </div>
       </div>

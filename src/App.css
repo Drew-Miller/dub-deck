@@ -40,6 +40,7 @@
   font-size: 20px;
   text-shadow: 0 0 12px #57d98a99;
 }
+.app-brand-icon { flex: 0 0 auto; filter: drop-shadow(0 0 8px #57d98a55); }
 
 .app-import { justify-content: center; width: 100%; }
 .app-add-source { justify-content: center; width: 100%; margin-top: 8px; }

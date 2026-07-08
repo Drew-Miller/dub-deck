@@ -39,32 +39,33 @@ only URLs + metadata and streams from the origin. Built:
 
 ---
 
-## Enabling the yt-dlp scrape backend (other machine only)
+## Tools & downloads (runtime, opt-in via Settings)
 
-The scrape path is fully wired but **inert** here: the Rust command is gated behind an
-off-by-default cargo feature and nothing is installed on this machine. To turn it on where it
-is permitted (note: scraping YouTube violates its ToS; extracted URLs are IP-locked and
-short-lived — use for sources/uses you are authorized for):
+External tools are now enabled at **runtime in Settings › Tools** (no cargo feature). dub-deck
+installs nothing — you point it at binaries you've installed. Nothing runs until a path is set.
 
-1. **Install yt-dlp** on PATH (`winget install yt-dlp.yt-dlp`, `brew install yt-dlp`, or pipx).
-2. **Build with the feature:** `npm run tauri dev -- --features scrape`
-   (or add `scrape` to a default feature set in `src-tauri/Cargo.toml`). This compiles and
-   registers the `resolve_scrape` command (`src-tauri/src/lib.rs`).
-3. **Register the frontend resolver** once at startup — in `src/main.tsx`:
-   ```ts
-   import { enableYtDlpScrape } from "./lib/scrapeBackend";
-   enableYtDlpScrape();
-   ```
-4. **Create scrape episodes** via `addScrapeUrl(url)` in `src/lib/remoteSources.ts` (wire a UI
-   mode in `AddSourceDialog` if desired). Playback resolves the stream via `resolve_scrape` and
-   plays it in the native `<video>` (hls.js if the extracted URL is HLS).
+- **yt-dlp** — enables YouTube/Vimeo **download** and scrape-**playback** of `scrape` sources.
+  Note: scraping YouTube violates its ToS; extracted URLs are IP-locked/short-lived — use only
+  where authorized.
+- **ffmpeg** — enables downloading **HLS** (`.m3u8`) streams to a single file.
 
-To undo: drop the `--features scrape` flag; the command is no longer compiled or registered.
+Setup on any machine: install the binary (`winget install yt-dlp.yt-dlp` / `...ffmpeg`,
+`brew install yt-dlp ffmpeg`, etc.), open **Settings › Tools**, paste the path, hit **Test**
+(shows "detected"). Downloads/scrape for the matching sources then light up; otherwise the UI
+says "enable in Settings".
+
+**How it's wired:** paths persist in the `settings` table (`getSetting`/`setSetting` in
+`db.ts`). The Rust commands `resolve_scrape` / `download_scrape` (yt-dlp) and `download_hls`
+(ffmpeg) receive the path as an argument (`src-tauri/src/lib.rs`) — always compiled, inert when
+the path is empty. MP4 downloads use `download_media` (reqwest, no external tool). Downloaded
+files live in `<app-data>/downloads/` and `resolveMedia` plays them locally when present.
 
 ---
 
 ## Next up / not done
 
 - Folder-scan import (pre-existing backlog item).
-- Optional: surface a "scrape" mode in `AddSourceDialog` (kept out of the default build).
+- Download **progress** is not reported yet (button shows busy, then done/failed).
 - `alternateEnclosure` parsing covers MP4 + HLS; Atom feeds are not parsed (RSS 2.0 only).
+- Player download button reflects `current.download_path` at play time; downloading the
+  currently-playing episode switches it to local on the next play, not mid-playback.

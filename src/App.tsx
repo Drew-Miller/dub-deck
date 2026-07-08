@@ -1,78 +1,48 @@
 import { useState } from "react";
-import { usePlayer, useBumpLibrary } from "./lib/state";
-import { pickAndImport } from "./lib/importer";
+import { usePlayer } from "./lib/state";
 import Player from "./features/Player";
+import ImportView from "./features/ImportView";
 import LibraryView from "./features/LibraryView";
 import PlaylistsView from "./features/PlaylistsView";
 import FavoritesView from "./features/FavoritesView";
-import ShuffleView from "./features/ShuffleView";
-import FeedsView from "./features/FeedsView";
-import AddSourceDialog from "./features/AddSourceDialog";
+import SettingsView from "./features/SettingsView";
 import "./App.css";
 
-type View = "library" | "playlists" | "favorites" | "shuffle" | "feeds";
+type View = "import" | "library" | "playlists" | "favorites" | "settings";
 
 const NAV: { id: View; label: string; icon: string }[] = [
+  { id: "import", label: "Import", icon: "＋" },
   { id: "library", label: "Library", icon: "▤" },
-  { id: "shuffle", label: "Shuffle", icon: "🔀" },
   { id: "playlists", label: "Playlists", icon: "≣" },
-  { id: "favorites", label: "Liked & Favorites", icon: "♥" },
-  { id: "feeds", label: "Feeds", icon: "📡" },
+  { id: "favorites", label: "Favorites", icon: "♥" },
 ];
+
+const IconUser = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c0-4 4-6.5 8-6.5s8 2.5 8 6.5" />
+  </svg>
+);
+
+// dub-deck mark: a phosphor-green half-disc (◐) on a dark terminal tile.
+const IconBrand = () => (
+  <svg className="app-brand-icon" width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+    <rect x="1" y="1" width="62" height="62" rx="15" fill="#0a1610" stroke="#1f3a2b" strokeWidth="2" />
+    <circle cx="32" cy="32" r="17" fill="none" stroke="#57d98a" strokeWidth="4" />
+    <path d="M32 15 a17 17 0 0 1 0 34 z" fill="#57d98a" />
+  </svg>
+);
 
 function App() {
   const [view, setView] = useState<View>("library");
-  const [importing, setImporting] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const bump = useBumpLibrary();
   const { current } = usePlayer();
-
-  function flash(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4000);
-  }
-
-  async function handleImport() {
-    if (importing) return;
-    setImporting(true);
-    try {
-      const result = await pickAndImport();
-      if (result && result.imported > 0) {
-        bump();
-        const showLabel =
-          result.shows.length === 1 ? ` to ${result.shows[0]}` : "";
-        const failLabel = result.failed ? ` (${result.failed} failed)` : "";
-        setToast(
-          `Imported ${result.imported} episode${result.imported === 1 ? "" : "s"}${showLabel}${failLabel}`
-        );
-      } else if (result && result.imported === 0) {
-        setToast("Nothing imported");
-      }
-    } catch (e) {
-      setToast(`Import failed: ${String(e)}`);
-    } finally {
-      setImporting(false);
-      setTimeout(() => setToast(null), 4000);
-    }
-  }
 
   return (
     <div className={`app-shell ${current ? "with-player" : ""}`}>
       <aside className="app-sidebar">
         <div className="app-brand">
-          <span className="app-brand-mark">◐</span> dub-deck
+          <IconBrand /> dub-deck
         </div>
-        <button
-          className="btn btn-primary app-import"
-          onClick={handleImport}
-          disabled={importing}
-        >
-          {importing ? "Importing…" : "＋ Import episodes"}
-        </button>
-        <button className="btn btn-ghost app-add-source" onClick={() => setAddOpen(true)}>
-          ＋ Add source
-        </button>
         <nav className="app-nav">
           {NAV.map((n) => (
             <button
@@ -85,27 +55,26 @@ function App() {
             </button>
           ))}
         </nav>
-        <div className="app-sidebar-foot mute">Local library · files referenced in place</div>
+        <div className="app-sidebar-foot">
+          <button
+            className={`app-nav-item ${view === "settings" ? "active" : ""}`}
+            onClick={() => setView("settings")}
+          >
+            <span className="app-nav-icon"><IconUser /></span>
+            Settings
+          </button>
+        </div>
       </aside>
 
       <main className="app-main scroll-y">
+        {view === "import" && <ImportView />}
         {view === "library" && <LibraryView />}
         {view === "playlists" && <PlaylistsView />}
         {view === "favorites" && <FavoritesView />}
-        {view === "shuffle" && <ShuffleView />}
-        {view === "feeds" && <FeedsView />}
+        {view === "settings" && <SettingsView />}
       </main>
 
       <Player />
-
-      {addOpen && (
-        <AddSourceDialog
-          onAdded={(msg) => { bump(); flash(msg); }}
-          onClose={() => setAddOpen(false)}
-        />
-      )}
-
-      {toast && <div className="app-toast card">{toast}</div>}
     </div>
   );
 }

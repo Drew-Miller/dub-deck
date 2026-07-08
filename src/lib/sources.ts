@@ -100,6 +100,10 @@ export interface ResolvedMedia {
 
 /** The single choke point the Player uses to turn an episode into playable media. */
 export async function resolveMedia(ep: Episode): Promise<ResolvedMedia> {
+  // A downloaded copy always wins — play it locally, offline.
+  if (ep.download_path) {
+    return { kind: "native", url: convertFileSrc(ep.download_path), isHls: false };
+  }
   switch (ep.source_type) {
     case "file":
       return { kind: "native", url: convertFileSrc(ep.file_path), isHls: false };

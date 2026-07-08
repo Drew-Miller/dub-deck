@@ -4,6 +4,8 @@ export interface Show {
   id: number;
   title: string;
   created_at: string;
+  /** Optional show artwork URL (may be null; seeded from feeds/episodes). */
+  image_url: string | null;
   /** Populated by listShows(); number of episodes in the show. */
   episode_count?: number;
 }
@@ -49,9 +51,12 @@ export interface Episode {
   video_height: number | null;
   /** Seconds; filled at import from tags and/or on first playback. */
   duration: number | null;
-  liked: boolean;
   favorited: boolean;
   added_at: string;
+  /** Joined from the owning show's artwork (null if none). */
+  show_image: string | null;
+  /** Local path of a downloaded copy (null = stream from source). */
+  download_path: string | null;
 }
 
 export interface Playlist {
@@ -83,7 +88,6 @@ export interface EpisodeFilter {
   episodeMin?: number;
   /** Inclusive episode-number upper bound (e.g. 199). */
   episodeMax?: number;
-  likedOnly?: boolean;
   favoritedOnly?: boolean;
   sort?: EpisodeSort;
 }

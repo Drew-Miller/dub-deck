@@ -7,6 +7,7 @@ import type { JSX } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { Show, Episode, EpisodeFilter } from "../types";
 import { listShows, listEpisodes, listYears, deleteEpisode } from "../lib/db";
+import { downloadEpisode, removeDownload, downloadState, loadTools, type Tools } from "../lib/downloads";
 import { usePlayer, useLibraryVersion, useBumpLibrary } from "../lib/state";
 import { log } from "../lib/log";
 import FilterBar, { type FilterState } from "./FilterBar";
@@ -16,7 +17,6 @@ import "./LibraryView.css";
 const DEFAULT_FILTER: FilterState = {
   showIds: [],
   search: "",
-  likedOnly: false,
   favoritedOnly: false,
   sort: "number_asc",
 };
@@ -28,7 +28,6 @@ function toEpisodeFilter(f: FilterState, search: string): EpisodeFilter {
     search: search.trim() || undefined,
     year: f.year,
     month: f.month,
-    likedOnly: f.likedOnly || undefined,
     favoritedOnly: f.favoritedOnly || undefined,
     sort: f.sort,
   };
@@ -52,6 +51,7 @@ export default function LibraryView(): JSX.Element {
 
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [editing, setEditing] = useState<Episode | null>(null);
+  const [tools, setTools] = useState<Tools>({ ytdlp: false, ffmpeg: false });
 
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -122,7 +122,6 @@ export default function LibraryView(): JSX.Element {
     filter.month,
     filter.episodeBucket?.[0],
     filter.episodeBucket?.[1],
-    filter.likedOnly,
     filter.favoritedOnly,
     filter.sort,
     libraryVersion,
@@ -137,8 +136,41 @@ export default function LibraryView(): JSX.Element {
     return `${n} episode${n === 1 ? "" : "s"}`;
   }, [episodes.length]);
 
+  // Label the playback context by the single selected show, else the library.
+  const contextLabel = useMemo(() => {
+    if (filter.showIds.length === 1) {
+      const s = shows.find((x) => x.id === filter.showIds[0]);
+      if (s) return s.title;
+    }
+    return "Library";
+  }, [filter.showIds, shows]);
+
   const playEpisode = (ep: Episode) => {
-    player.play(ep, queueRef.current);
+    player.play(ep, queueRef.current, contextLabel);
+  };
+
+  useEffect(() => {
+    loadTools().then(setTools).catch(() => {});
+  }, [libraryVersion]);
+
+  const onDownload = async (ep: Episode) => {
+    setMenuFor(null);
+    try {
+      await downloadEpisode(ep);
+      bumpLibrary();
+    } catch (e) {
+      log.warn("download failed", { id: ep.id, error: String(e) });
+    }
+  };
+
+  const onRemoveDownload = async (ep: Episode) => {
+    setMenuFor(null);
+    try {
+      await removeDownload(ep);
+      bumpLibrary();
+    } catch (e) {
+      log.warn("remove download failed", { id: ep.id, error: String(e) });
+    }
   };
 
   const onReveal = async (ep: Episode) => {
@@ -216,11 +248,8 @@ export default function LibraryView(): JSX.Element {
                 </div>
 
                 <div className="episode-flags">
-                  {ep.liked && (
-                    <span className="flag like" title="Liked">♥</span>
-                  )}
                   {ep.favorited && (
-                    <span className="flag fav" title="Favorited">★</span>
+                    <span className="flag fav" title="Favorite">♥</span>
                   )}
                 </div>
 
@@ -255,6 +284,24 @@ export default function LibraryView(): JSX.Element {
                       role="menu"
                       onMouseDown={(e) => e.stopPropagation()}
                     >
+                      <button role="menuitem" onClick={() => { setMenuFor(null); player.playNext(ep); }}>
+                        Play next
+                      </button>
+                      <button role="menuitem" onClick={() => { setMenuFor(null); player.addToQueue(ep); }}>
+                        Add to queue
+                      </button>
+                      {(() => {
+                        const st = downloadState(ep, tools);
+                        if (st === "downloaded")
+                          return <button role="menuitem" onClick={() => onRemoveDownload(ep)}>Remove download</button>;
+                        if (st === "available")
+                          return <button role="menuitem" onClick={() => onDownload(ep)}>Download</button>;
+                        if (st === "needs-ytdlp")
+                          return <button role="menuitem" disabled title="Enable yt-dlp in Settings">Download (needs yt-dlp)</button>;
+                        if (st === "needs-ffmpeg")
+                          return <button role="menuitem" disabled title="Enable ffmpeg in Settings">Download (needs ffmpeg)</button>;
+                        return null;
+                      })()}
                       <button role="menuitem" onClick={() => { setMenuFor(null); setEditing(ep); }}>
                         Edit metadata
                       </button>

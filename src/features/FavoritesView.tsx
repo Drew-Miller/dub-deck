@@ -5,8 +5,6 @@ import { usePlayer, useLibraryVersion } from "../lib/state";
 import type { Episode } from "../types";
 import "./Sidebars.css";
 
-type Tab = "liked" | "favorites";
-
 /** Format an ISO 'YYYY-MM-DD' date into something compact and readable. */
 function formatDate(date: string | null): string {
   if (!date) return "";
@@ -22,18 +20,11 @@ function formatDate(date: string | null): string {
 export default function FavoritesView(): JSX.Element {
   const { play, playQueue } = usePlayer();
   const version = useLibraryVersion();
-
-  const [tab, setTab] = useState<Tab>("liked");
   const [episodes, setEpisodes] = useState<Episode[]>([]);
 
-  // Re-query the active list whenever the tab or the library changes.
   useEffect(() => {
     let cancelled = false;
-    const filter =
-      tab === "liked"
-        ? { likedOnly: true, sort: "added_desc" as const }
-        : { favoritedOnly: true, sort: "added_desc" as const };
-    listEpisodes(filter)
+    listEpisodes({ favoritedOnly: true, sort: "added_desc" })
       .then((rows) => {
         if (!cancelled) setEpisodes(rows);
       })
@@ -43,42 +34,22 @@ export default function FavoritesView(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [tab, version]);
-
-  const emptyLabel =
-    tab === "liked" ? "No liked episodes yet." : "No favorites yet.";
+  }, [version]);
 
   return (
     <div className="dd-view">
       <div>
-        <h2 className="dd-view-title">Saved</h2>
-        <p className="dd-view-sub">Everything you have liked or starred, newest first.</p>
-      </div>
-
-      <div className="row dd-chips">
-        <button
-          type="button"
-          className={"chip" + (tab === "liked" ? " active" : "")}
-          onClick={() => setTab("liked")}
-        >
-          <span aria-hidden="true">&#9829;</span> Liked
-        </button>
-        <button
-          type="button"
-          className={"chip" + (tab === "favorites" ? " active" : "")}
-          onClick={() => setTab("favorites")}
-        >
-          <span aria-hidden="true">&#9733;</span> Favorites
-        </button>
+        <h2 className="dd-view-title">Favorites</h2>
+        <p className="dd-view-sub">Everything you've hearted, newest first.</p>
       </div>
 
       <div className="card dd-panel dd-panel-main">
         <div className="row spread dd-panel-head">
-          <h3>{tab === "liked" ? "Liked episodes" : "Favorite episodes"}</h3>
+          <h3>Favorite episodes</h3>
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => playQueue(episodes, 0)}
+            onClick={() => playQueue(episodes, 0, "Favorites")}
             disabled={episodes.length === 0}
           >
             <span aria-hidden="true">&#9654;</span> Play all
@@ -87,10 +58,8 @@ export default function FavoritesView(): JSX.Element {
 
         {episodes.length === 0 ? (
           <div className="dd-empty">
-            <span className="dd-empty-icon" aria-hidden="true">
-              {tab === "liked" ? "♡" : "☆"}
-            </span>
-            <span>{emptyLabel}</span>
+            <span className="dd-empty-icon" aria-hidden="true">♡</span>
+            <span>No favorites yet.</span>
           </div>
         ) : (
           <div className="dd-list scroll-y">
@@ -100,11 +69,11 @@ export default function FavoritesView(): JSX.Element {
                 className="dd-row"
                 role="button"
                 tabIndex={0}
-                onClick={() => play(ep, episodes)}
+                onClick={() => play(ep, episodes, "Favorites")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    play(ep, episodes);
+                    play(ep, episodes, "Favorites");
                   }
                 }}
               >

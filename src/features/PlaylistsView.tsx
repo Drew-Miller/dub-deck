@@ -171,7 +171,7 @@ export default function PlaylistsView(): JSX.Element {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={() => playQueue(episodes, 0)}
+                    onClick={() => playQueue(episodes, 0, selected.name)}
                     disabled={episodes.length === 0}
                   >
                     <span aria-hidden="true">&#9654;</span> Play all
@@ -201,11 +201,11 @@ export default function PlaylistsView(): JSX.Element {
                       className="dd-row"
                       role="button"
                       tabIndex={0}
-                      onClick={() => play(ep, episodes)}
+                      onClick={() => play(ep, episodes, selected.name)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          play(ep, episodes);
+                          play(ep, episodes, selected.name);
                         }
                       }}
                     >

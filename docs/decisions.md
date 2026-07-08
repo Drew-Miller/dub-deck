@@ -113,6 +113,29 @@ Dates are absolute. Format: `YYYY-MM-DD — decision — why`.
 - **2026-07-07** — Cross-machine agent continuity lives in **git-tracked project docs**
   (`decisions.md` + `handoff.md`), never `~/.claude` memory (per-machine, doesn't sync).
 
+## Favorites / queue / player / downloads overhaul
+- **2026-07-07** — **Likes removed entirely** (migration v4 drops `liked`/`liked_at`); a single
+  **Favorite** (heart) is the only saved state. — User wanted one "saved" concept.
+- **2026-07-07** — **Queue = context + manual.** Playback captures the ordered list you started
+  from (its sort/filter order) as the *context*; **Play next / Add to queue** (library rows +
+  Up Next panel) form a *manual* queue that plays before the context resumes. At the end of the
+  list, playback **auto-shuffles the whole library** (early taste of the shuffle north star).
+- **2026-07-07** — **Full player**: centered overlay transport (skip −10 / play (squircle) /
+  skip +10), title top-left + **✕ top-right collapses to mini bar**, auto-hide ~1.5s (snappy
+  appear, stays while paused, cursor hides), fullscreen targets the **stage** so the video fills
+  the monitor, right panel = **Up Next** queue. Mini bar gains a **show thumbnail** (episode/show
+  image, else initial placeholder).
+- **2026-07-07** — **Search** moved above the Shows chips as a rounded pill with a search icon.
+- **2026-07-07** — **Single Import screen** (`ImportView`) replaces the two sidebar buttons +
+  modal; **Feeds** folded into **Settings › Sources**; sidebar footer gains **⚙ Settings**.
+- **2026-07-07** — **Downloads** (migration v5 `episodes.download_path`): stream by default,
+  opt-in local caching. MP4 native (reqwest); **HLS needs ffmpeg**, **YouTube/Vimeo need yt-dlp**
+  — both **runtime opt-in via Settings › Tools** (paths in a `settings` table). Nothing is
+  auto-installed; unconfigured ⇒ "enable in Settings". Downloaded files play locally.
+- **2026-07-07** — **Scrape moved compile-time → runtime**: dropped the `scrape` cargo feature;
+  `resolve_scrape`/`download_scrape` take the Settings-configured yt-dlp path as an argument and
+  are always compiled but inert until set. — Supports the Settings-driven tool model.
+
 ## Docs layout
 - **2026-07-07** — All living docs (`ARCHITECTURE.md`, `decisions.md`, `handoff.md`) live in a
   root **`docs/`** folder (moved out of `.claude/docs/`). `CLAUDE.md` stays at root (Claude Code

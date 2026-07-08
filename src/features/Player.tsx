@@ -1,31 +1,31 @@
 // Global media player for dub-deck. Mounted once by App.tsx. Two modes driven by
 // player.expanded:
-//   • expanded  → full-window video with auto-hiding overlay controls, a back arrow,
-//                 and the show's other episodes in a right-side drawer.
+//   • expanded  → full-window video with auto-hiding overlay controls: a centered
+//                 transport (skip / play / skip), the title top-left, an ✕ (top-right)
+//                 that collapses to the mini bar, and an Up Next queue on the right.
 //   • collapsed → an Apple-Music-style mini bar pinned at the bottom (keeps playing).
-// A single <video> element is reused across both modes so playback never restarts.
-// Edit / delete / reveal live at the episode-list level, NOT here (see decisions.md).
+// A single <video>/<iframe> stage is reused across both modes so playback never restarts.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import Hls from "hls.js";
-import { usePlayer, useBumpLibrary, useLibraryVersion } from "../lib/state";
+import { usePlayer, useBumpLibrary } from "../lib/state";
 import {
-  toggleLike,
   toggleFavorite,
   setDuration,
-  listEpisodes,
   listPlaylists,
   createPlaylist,
   addToPlaylist,
+  listRandomEpisodes,
 } from "../lib/db";
 import { resolveMedia, type ResolvedMedia } from "../lib/sources";
 import { createIframeAdapter, type IframeAdapter } from "../lib/iframePlayer";
 import { log } from "../lib/log";
-import type { Episode, Playlist } from "../types";
+import { downloadEpisode, removeDownload, downloadState, loadTools, type Tools } from "../lib/downloads";
+import type { Playlist } from "../types";
 import "./Player.css";
 
-/** Uniform playback control surface over the native <video> and (later) iframe embeds. */
+/** Uniform playback control surface over the native <video> and iframe embeds. */
 interface Transport {
   play(): void;
   pause(): void;
@@ -35,7 +35,8 @@ interface Transport {
   setMuted(m: boolean): void;
 }
 
-const AUTO_HIDE_MS = 2500;
+const AUTO_HIDE_MS = 1500;
+const SKIP_SECONDS = 10;
 
 function fmt(t: number): string {
   if (!Number.isFinite(t) || t < 0) return "0:00";
@@ -50,19 +51,22 @@ function fmt(t: number): string {
 
 // ---- icons: 80s-sci-fi transport + modern action glyphs (glow comes from CSS) ----
 const V = { viewBox: "0 0 24 24", "aria-hidden": true } as const;
-const IconPlay = () => (<svg width="24" height="24" fill="currentColor" {...V}><path d="M7 4.5v15a.6.6 0 0 0 .92.5l12-7.5a.6.6 0 0 0 0-1l-12-7.5A.6.6 0 0 0 7 4.5z" /></svg>);
-const IconPause = () => (<svg width="24" height="24" fill="currentColor" {...V}><path d="M7 4.6h3.4v14.8H7zM13.6 4.6H17v14.8h-3.4z" /></svg>);
+const IconPlay = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M7 4.5v15a.6.6 0 0 0 .92.5l12-7.5a.6.6 0 0 0 0-1l-12-7.5A.6.6 0 0 0 7 4.5z" /></svg>);
+const IconPause = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M7 4.6h3.4v14.8H7zM13.6 4.6H17v14.8h-3.4z" /></svg>);
+const IconBack10 = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M12 6v12L3.5 12 12 6zM21 6v12l-8.5-6L21 6z" /></svg>);
+const IconFwd10 = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M12 6v12l8.5-6L12 6zM3 6v12l8.5-6L3 6z" /></svg>);
 const IconList = () => (<svg width="20" height="20" fill="currentColor" {...V}><path d="M4 6h16v2.2H4zM4 10.9h16v2.2H4zM4 15.8h10v2.2H4z" /></svg>);
 const IconPlus = () => (<svg width="20" height="20" fill="currentColor" {...V}><path d="M3 6h12v2H3zM3 11h12v2H3zM3 16h8v2H3zM18 12h2v3h3v2h-3v3h-2v-3h-3v-2h3z" /></svg>);
 const IconHeart = ({ on }: { on: boolean }) =>
   on
     ? (<svg width="20" height="20" fill="currentColor" {...V}><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>)
     : (<svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" {...V}><path d="M12 20.5l-1.3-1.18C6 15 3 12.2 3 8.75 3 6.13 5.02 4 7.5 4c1.6 0 3.1.86 4 2.2C12.4 4.86 13.9 4 15.5 4 17.98 4 20 6.13 20 8.75c0 3.45-3 6.25-7.7 10.57L12 20.5z" /></svg>);
-const IconStar = ({ on }: { on: boolean }) =>
-  on
-    ? (<svg width="20" height="20" fill="currentColor" {...V}><path d="M12 2l2.9 6.26 6.85.7-5.13 4.6 1.48 6.74L12 17.6 5.9 20.3l1.48-6.74L2.25 8.96l6.85-.7z" /></svg>)
-    : (<svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" {...V}><path d="M12 4l2.4 5.2 5.6.6-4.2 3.8 1.2 5.6L12 16.3 6.99 19.2l1.2-5.6L4 9.8l5.6-.6z" /></svg>);
 const IconFull = () => (<svg width="20" height="20" fill="currentColor" {...V}><path d="M4 4h6v2H6v4H4zM20 4v6h-2V6h-4V4zM6 18h4v2H4v-6h2zM18 14h2v6h-6v-2h4z" /></svg>);
+const IconDownload = ({ done }: { done: boolean }) =>
+  done
+    ? (<svg width="20" height="20" fill="currentColor" {...V}><path d="M9.6 16.6L4.4 11.4 5.8 10l3.8 3.8L18.2 5.2 19.6 6.6z" /></svg>)
+    : (<svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" {...V}><path d="M12 3v11m0 0l-4-4m4 4l4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+const IconShuffle = () => (<svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...V}><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="M15 15l6 6" /><path d="M4 4l5 5" /></svg>);
 const IconVol = ({ muted }: { muted: boolean }) => (
   <svg width="22" height="22" fill="currentColor" {...V}>
     <path d="M3 10v4h3.5L11 17.8V6.2L6.5 10H3z" />
@@ -78,19 +82,31 @@ const IconVol = ({ muted }: { muted: boolean }) => (
 );
 
 export default function Player(): JSX.Element | null {
-  const { current, expanded, play, next, close, expand, collapse } = usePlayer();
+  const {
+    current,
+    expanded,
+    next,
+    close,
+    expand,
+    collapse,
+    upNext,
+    manualCount,
+    jumpTo,
+    removeFromQueue,
+    contextLabel,
+    playQueue,
+  } = usePlayer();
   const bump = useBumpLibrary();
-  const version = useLibraryVersion();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const embedHostRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hideTimer = useRef<number | null>(null);
   const transportRef = useRef<Transport | null>(null);
 
   const [media, setMedia] = useState<ResolvedMedia | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
-  const [liked, setLiked] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [playing, setPlaying] = useState(true);
   const [time, setTime] = useState(0);
@@ -98,14 +114,14 @@ export default function Player(): JSX.Element | null {
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
   const [plOpen, setPlOpen] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [newName, setNewName] = useState("");
-  const [siblings, setSiblings] = useState<Episode[]>([]);
+  const [tools, setTools] = useState<Tools>({ ytdlp: false, ffmpeg: false });
+  const [dlDone, setDlDone] = useState(false);
 
   const currentId = current?.id ?? null;
-  const showId = current?.show_id ?? null;
   const isIframe = media?.kind === "iframe";
 
   // Resolve the current episode into playable media (file/url/embed).
@@ -223,27 +239,21 @@ export default function Player(): JSX.Element | null {
 
   useEffect(() => {
     if (!current) return;
-    setLiked(current.liked);
     setFavorited(current.favorited);
+    setDlDone(!!current.download_path);
     setPlOpen(false);
     setControlsVisible(true);
   }, [current, currentId]);
 
   useEffect(() => {
-    if (showId == null) return;
-    let cancelled = false;
-    listEpisodes({ showIds: [showId], sort: "number_asc" }).then((rows) => {
-      if (!cancelled) setSiblings(rows);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [showId, version]);
+    loadTools().then(setTools).catch(() => {});
+  }, [currentId]);
 
   const bumpControls = useCallback(() => {
     setControlsVisible(true);
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => {
+      // Keep controls up while paused (YouTube/Netflix behavior); only hide when playing.
       if (!transportRef.current?.paused()) setControlsVisible(false);
     }, AUTO_HIDE_MS);
   }, []);
@@ -255,17 +265,32 @@ export default function Player(): JSX.Element | null {
     };
   }, [expanded, currentId, bumpControls]);
 
-  const onToggleLike = useCallback(async () => {
-    if (currentId == null) return;
-    setLiked(await toggleLike(currentId));
-    bump();
-  }, [currentId, bump]);
-
   const onToggleFavorite = useCallback(async () => {
     if (currentId == null) return;
     setFavorited(await toggleFavorite(currentId));
     bump();
   }, [currentId, bump]);
+
+  const onDownload = useCallback(async () => {
+    if (!current) return;
+    try {
+      if (dlDone || current.download_path) {
+        await removeDownload(current);
+        setDlDone(false);
+      } else {
+        await downloadEpisode(current);
+        setDlDone(true);
+      }
+      bump();
+    } catch (e) {
+      log.warn("player: download failed", { id: current.id, error: String(e) });
+    }
+  }, [current, dlDone, bump]);
+
+  const onShuffle = useCallback(async () => {
+    const list = await listRandomEpisodes(50);
+    if (list.length) playQueue(list, 0, "Shuffle");
+  }, [playQueue]);
 
   const togglePlay = useCallback(() => {
     const t = transportRef.current;
@@ -273,6 +298,18 @@ export default function Player(): JSX.Element | null {
     if (t.paused()) t.play();
     else t.pause();
   }, []);
+
+  const skipBy = useCallback(
+    (delta: number) => {
+      const t = transportRef.current;
+      if (!t) return;
+      const ceil = dur || Number.MAX_SAFE_INTEGER;
+      const nt = Math.max(0, Math.min((time || 0) + delta, ceil));
+      t.seek(nt);
+      setTime(nt);
+    },
+    [time, dur]
+  );
 
   const onLoadedMetadata = useCallback(() => {
     const el = videoRef.current;
@@ -296,15 +333,16 @@ export default function Player(): JSX.Element | null {
 
   const toggleMute = useCallback(() => {
     setMuted((m) => {
-      const next = !m;
-      transportRef.current?.setMuted(next);
-      return next;
+      const nextMuted = !m;
+      transportRef.current?.setMuted(nextMuted);
+      return nextMuted;
     });
   }, []);
 
+  // Fullscreen the stage so the video fills the monitor (works for <video> and embeds).
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen();
-    else void rootRef.current?.requestFullscreen();
+    else void stageRef.current?.requestFullscreen();
   }, []);
 
   const onPickPlaylist = useCallback(
@@ -329,12 +367,26 @@ export default function Player(): JSX.Element | null {
   if (!current) return null;
 
   const quality = current.video_height ? `${current.video_height}p` : null;
+  const thumb = current.thumbnail_url ?? current.show_image ?? null;
+  const initial = (current.show_title ?? current.title ?? "?").trim().charAt(0).toUpperCase() || "?";
+  const cursorHidden = expanded && !controlsVisible && playing;
+  const dlState = downloadState(current, tools);
+  const dlBlocked = dlState === "needs-ytdlp" || dlState === "needs-ffmpeg";
+  const dlTitle = dlDone
+    ? "Remove download"
+    : dlState === "needs-ytdlp"
+    ? "Enable yt-dlp in Settings"
+    : dlState === "needs-ffmpeg"
+    ? "Enable ffmpeg in Settings"
+    : "Download for offline";
 
   return (
     <div ref={rootRef} className={`ddp ${expanded ? "ddp-expanded" : "ddp-mini"}`}>
       <div
-        className="ddp-stage"
+        ref={stageRef}
+        className={`ddp-stage${cursorHidden ? " cursor-hidden" : ""}`}
         onMouseMove={expanded ? bumpControls : undefined}
+        onMouseEnter={expanded ? bumpControls : undefined}
         onClick={expanded ? togglePlay : expand}
       >
         {/* Native <video> stays mounted always (hidden for iframe sources) so
@@ -366,21 +418,36 @@ export default function Player(): JSX.Element | null {
             className={`ddp-overlay${controlsVisible ? " show" : " hide"}`}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* top: title (left) + close (right) */}
             <div className="ddp-top">
-              <button className="icon-btn ddp-back" title="Back to episodes" onClick={collapse}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M15.7 5.3a1 1 0 0 1 0 1.4L10.42 12l5.3 5.3a1 1 0 0 1-1.42 1.4l-6-6a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.4 0z" />
-                </svg>
-              </button>
               <div className="ddp-top-meta grow">
                 <div className="ddp-top-show truncate">
-                  {current.show_title ?? "Unknown show"}
+                  <span className="ddp-context">{contextLabel || current.show_title || "Now playing"}</span>
                   {quality && <span className="ep-badge">{quality}</span>}
                 </div>
                 <div className="ddp-top-title truncate">{current.title}</div>
               </div>
+              <button className="icon-btn ddp-close" title="Close full player" onClick={collapse}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                </svg>
+              </button>
             </div>
 
+            {/* center transport: skip / play / skip */}
+            <div className="ddp-center">
+              <button className="icon-btn ddp-skip" title={`Back ${SKIP_SECONDS}s`} onClick={() => skipBy(-SKIP_SECONDS)}>
+                <IconBack10 />
+              </button>
+              <button className="icon-btn ddp-play-lg" title={playing ? "Pause" : "Play"} onClick={togglePlay}>
+                {playing ? <IconPause /> : <IconPlay />}
+              </button>
+              <button className="icon-btn ddp-skip" title={`Forward ${SKIP_SECONDS}s`} onClick={() => skipBy(SKIP_SECONDS)}>
+                <IconFwd10 />
+              </button>
+            </div>
+
+            {/* bottom: scrubber + secondary controls */}
             <div className="ddp-bottom">
               <div className="ddp-scrub row">
                 <span className="ddp-time">{fmt(time)}</span>
@@ -397,51 +464,40 @@ export default function Player(): JSX.Element | null {
               </div>
 
               <div className="ddp-controls">
-                {/* far left: episodes / theater drawer toggle */}
-                <button
-                  className={`icon-btn ddp-drawer-toggle${drawerOpen ? " active" : ""}`}
-                  title="Episodes"
-                  onClick={() => setDrawerOpen((o) => !o)}
-                >
-                  <IconList />
-                </button>
-
-                {/* playback: play/pause + volume with slider (drives the native
-                    <video> or the embed adapter through the shared transport) */}
-                <div className="ddp-group ddp-playback">
-                  <button className="icon-btn ddp-play" onClick={togglePlay} title={playing ? "Pause" : "Play"}>
-                    {playing ? <IconPause /> : <IconPlay />}
+                <div className="ddp-vol-wrap">
+                  <button className="icon-btn" onClick={toggleMute} title={muted ? "Unmute" : "Mute"}>
+                    <IconVol muted={muted} />
                   </button>
-                  <div className="ddp-vol-wrap">
-                    <button className="icon-btn" onClick={toggleMute} title={muted ? "Unmute" : "Mute"}>
-                      <IconVol muted={muted} />
-                    </button>
-                    <input
-                      className="ddp-vol"
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={muted ? 0 : volume}
-                      onChange={(e) => onVolume(Number(e.target.value))}
-                      title="Volume"
-                    />
-                  </div>
+                  <input
+                    className="ddp-vol"
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={muted ? 0 : volume}
+                    onChange={(e) => onVolume(Number(e.target.value))}
+                    title="Volume"
+                  />
                 </div>
 
                 <span className="grow" />
 
-                {/* favorite (Twitter-style) */}
                 <div className="ddp-group ddp-actions">
-                  <button className={`icon-btn like${liked ? " active" : ""}`} onClick={onToggleLike} title="Like">
-                    <IconHeart on={liked} />
-                  </button>
                   <button className={`icon-btn fav${favorited ? " active" : ""}`} onClick={onToggleFavorite} title="Favorite">
-                    <IconStar on={favorited} />
+                    <IconHeart on={favorited} />
                   </button>
+                  {current.source_type !== "file" && (
+                    <button
+                      className={`icon-btn dl${dlDone ? " active" : ""}`}
+                      onClick={onDownload}
+                      disabled={!dlDone && dlBlocked}
+                      title={dlTitle}
+                    >
+                      <IconDownload done={dlDone} />
+                    </button>
+                  )}
                 </div>
 
-                {/* small space, then: playlist, then fullscreen (rightmost) */}
                 <div className="ddp-group ddp-window">
                   <div className="ddp-menu-wrap">
                     <button className={`icon-btn${plOpen ? " active" : ""}`} title="Add to playlist"
@@ -468,6 +524,13 @@ export default function Player(): JSX.Element | null {
                       </div>
                     )}
                   </div>
+                  <button
+                    className={`icon-btn ddp-drawer-toggle${queueOpen ? " active" : ""}`}
+                    title="Up Next"
+                    onClick={() => setQueueOpen((o) => !o)}
+                  >
+                    <IconList />
+                  </button>
                   <button className="icon-btn" onClick={toggleFullscreen} title="Fullscreen">
                     <IconFull />
                   </button>
@@ -478,25 +541,45 @@ export default function Player(): JSX.Element | null {
         )}
       </div>
 
-      {/* ---------- EXPANDED right-side episodes drawer ---------- */}
-      {expanded && drawerOpen && (
+      {/* ---------- EXPANDED right-side Up Next queue ---------- */}
+      {expanded && queueOpen && (
         <aside className="ddp-drawer">
-          <div className="ddp-drawer-head">Episodes <span className="mute">({siblings.length})</span></div>
+          <div className="ddp-drawer-head">
+            <span>Up Next <span className="mute">({upNext.length})</span></span>
+            <button className="icon-btn ddp-shuffle" title="Shuffle library into the queue" onClick={() => void onShuffle()}>
+              <IconShuffle />
+            </button>
+          </div>
           <div className="ddp-drawer-list scroll-y">
-            {siblings.map((s) => (
-              <div
-                key={s.id}
-                className={`ddp-sib${s.id === currentId ? " active" : ""}`}
-                onClick={() => play(s, siblings)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter") play(s, siblings); }}
-              >
-                <span className="ddp-sib-num episode-num">{s.episode_number != null ? s.episode_number : "•"}</span>
-                <span className="ddp-sib-title truncate grow">{s.title}</span>
-                {s.liked && <span className="like">♥</span>}
-              </div>
-            ))}
+            {upNext.length === 0 && <div className="mute ddp-pl-empty">Nothing up next.</div>}
+            {upNext.map((s, i) => {
+              const queued = i < manualCount;
+              return (
+                <div
+                  key={`${s.id}-${i}`}
+                  className={`ddp-sib${queued ? " queued" : ""}`}
+                  onClick={() => jumpTo(s)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") jumpTo(s); }}
+                >
+                  <span className="ddp-sib-num episode-num">
+                    {s.episode_number != null ? s.episode_number : "•"}
+                  </span>
+                  <span className="ddp-sib-title truncate grow">{s.title}</span>
+                  {queued && <span className="ddp-queued-tag">Queued</span>}
+                  {queued && (
+                    <button
+                      className="icon-btn ddp-sib-remove"
+                      title="Remove from queue"
+                      onClick={(e) => { e.stopPropagation(); removeFromQueue(s.id); }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </aside>
       )}
@@ -504,6 +587,9 @@ export default function Player(): JSX.Element | null {
       {/* ---------- COLLAPSED mini bar ---------- */}
       {!expanded && (
         <div className="ddp-minibar">
+          <div className="ddp-mini-thumb" aria-hidden="true">
+            {thumb ? <img src={thumb} alt="" /> : <span>{initial}</span>}
+          </div>
           <div className="ddp-mini-meta grow" onClick={expand} role="button" tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter") expand(); }}>
             <div className="ddp-mini-title truncate">{current.title}</div>
@@ -515,11 +601,8 @@ export default function Player(): JSX.Element | null {
             </button>
           </div>
           <div className="ddp-group ddp-actions">
-            <button className={`icon-btn like${liked ? " active" : ""}`} onClick={onToggleLike} title="Like">
-              <IconHeart on={liked} />
-            </button>
             <button className={`icon-btn fav${favorited ? " active" : ""}`} onClick={onToggleFavorite} title="Favorite">
-              <IconStar on={favorited} />
+              <IconHeart on={favorited} />
             </button>
             <button className="icon-btn" onClick={close} title="Close">✕</button>
           </div>

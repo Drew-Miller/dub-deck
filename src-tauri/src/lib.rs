@@ -91,24 +91,23 @@ fn read_media_tags(app: tauri::AppHandle, path: String) -> MediaTags {
     }
 }
 
-/// Extracted stream for a scraped source. Only compiled when the `scrape` feature
-/// is enabled (off by default — this machine ships no scrape backend).
-#[cfg(feature = "scrape")]
+/// Extracted stream for a scraped source (yt-dlp -g).
 #[derive(serde::Serialize)]
 struct ScrapeResult {
     stream_url: String,
     is_hls: bool,
 }
 
-/// Resolve a direct, playable stream URL from a watch URL using yt-dlp.
-///
-/// GATED behind the `scrape` cargo feature and OFF by default. Enabling it requires
-/// `yt-dlp` on PATH and violates some sites' ToS; the extracted URLs are typically
-/// IP-locked and short-lived. See `docs/handoff.md` before turning this on.
-#[cfg(feature = "scrape")]
+/// Resolve a playable stream URL from a watch URL using a user-configured yt-dlp.
+/// Enabled at runtime via Settings (the caller passes the configured `ytdlp` path);
+/// errors if unconfigured. Scraping violates some sites' ToS and yields IP-locked,
+/// short-lived URLs. See `docs/handoff.md`.
 #[tauri::command]
-fn resolve_scrape(url: String) -> Result<ScrapeResult, String> {
-    let out = std::process::Command::new("yt-dlp")
+fn resolve_scrape(url: String, ytdlp: String) -> Result<ScrapeResult, String> {
+    if ytdlp.trim().is_empty() {
+        return Err("yt-dlp is not configured (Settings \u{203a} Tools).".into());
+    }
+    let out = std::process::Command::new(&ytdlp)
         .args(["-g", "-f", "best", &url])
         .output()
         .map_err(|e| format!("yt-dlp not runnable: {e}"))?;
@@ -126,6 +125,82 @@ fn resolve_scrape(url: String) -> Result<ScrapeResult, String> {
     }
     let is_hls = stream_url.contains(".m3u8");
     Ok(ScrapeResult { stream_url, is_hls })
+}
+
+/// True if the given binary path runs `--version` successfully (Settings tool status).
+#[tauri::command]
+fn check_tool(path: String) -> bool {
+    if path.trim().is_empty() {
+        return false;
+    }
+    std::process::Command::new(&path)
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Download a direct media file (mp4/etc.) to `dest`, streaming to disk.
+#[tauri::command]
+fn download_media(url: String, dest: String) -> Result<(), String> {
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let mut resp = reqwest::blocking::get(&url).map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let mut file = std::fs::File::create(&dest).map_err(|e| e.to_string())?;
+    std::io::copy(&mut resp, &mut file).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Download + remux an HLS (.m3u8) stream to `dest` via a user-configured ffmpeg.
+#[tauri::command]
+fn download_hls(url: String, dest: String, ffmpeg: String) -> Result<(), String> {
+    if ffmpeg.trim().is_empty() {
+        return Err("ffmpeg is not configured (Settings \u{203a} Tools).".into());
+    }
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let out = std::process::Command::new(&ffmpeg)
+        .args(["-y", "-i", &url, "-c", "copy", &dest])
+        .output()
+        .map_err(|e| format!("ffmpeg not runnable: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(())
+}
+
+/// Download a YouTube/Vimeo video to `dest` via a user-configured yt-dlp.
+#[tauri::command]
+fn download_scrape(url: String, dest: String, ytdlp: String) -> Result<(), String> {
+    if ytdlp.trim().is_empty() {
+        return Err("yt-dlp is not configured (Settings \u{203a} Tools).".into());
+    }
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let out = std::process::Command::new(&ytdlp)
+        .args(["-f", "best", "-o", &dest, &url])
+        .output()
+        .map_err(|e| format!("yt-dlp not runnable: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(())
+}
+
+/// Delete a downloaded file (best-effort; ok if already gone).
+#[tauri::command]
+fn remove_file(path: String) -> Result<(), String> {
+    match std::fs::remove_file(&path) {
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -220,6 +295,29 @@ pub fn run() {
             CREATE UNIQUE INDEX IF NOT EXISTS idx_episodes_feed_guid
                 ON episodes(feed_id, guid) WHERE feed_id IS NOT NULL AND guid IS NOT NULL;
         ",
+        },
+        Migration {
+            version: 4,
+            description: "favorites-only: drop likes; add show image_url",
+            kind: MigrationKind::Up,
+            sql: "
+            DROP INDEX IF EXISTS idx_episodes_liked;
+            ALTER TABLE episodes DROP COLUMN liked;
+            ALTER TABLE episodes DROP COLUMN liked_at;
+            ALTER TABLE shows ADD COLUMN image_url TEXT;
+        ",
+        },
+        Migration {
+            version: 5,
+            description: "downloads + settings: episodes.download_path, settings key/value table",
+            kind: MigrationKind::Up,
+            sql: "
+            ALTER TABLE episodes ADD COLUMN download_path TEXT;
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+        ",
     }];
 
     let builder = tauri::Builder::default()
@@ -246,15 +344,17 @@ pub fn run() {
             Ok(())
         });
 
-    // The scrape command is only registered when the (off-by-default) `scrape`
-    // feature is compiled in, so no scrape backend exists on a normal build.
-    #[cfg(feature = "scrape")]
-    let builder =
-        builder.invoke_handler(tauri::generate_handler![read_media_tags, append_log, resolve_scrape]);
-    #[cfg(not(feature = "scrape"))]
-    let builder = builder.invoke_handler(tauri::generate_handler![read_media_tags, append_log]);
-
     builder
+        .invoke_handler(tauri::generate_handler![
+            read_media_tags,
+            append_log,
+            resolve_scrape,
+            check_tool,
+            download_media,
+            download_hls,
+            download_scrape,
+            remove_file
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -43,9 +43,10 @@ function normalizeEpisode(row: any): Episode {
     original_title: row.original_title ?? null,
     video_height: row.video_height ?? null,
     duration: row.duration ?? null,
-    liked: !!row.liked,
     favorited: !!row.favorited,
     added_at: row.added_at,
+    show_image: row.show_image ?? null,
+    download_path: row.download_path ?? null,
   };
 }
 
@@ -59,7 +60,7 @@ export function mediaSrc(filePath: string): string {
 export async function listShows(): Promise<Show[]> {
   const db = await getDb();
   return db.select<Show[]>(
-    `SELECT s.id, s.title, s.created_at,
+    `SELECT s.id, s.title, s.created_at, s.image_url,
             (SELECT COUNT(*) FROM episodes e WHERE e.show_id = s.id) AS episode_count
        FROM shows s
       ORDER BY s.title COLLATE NOCASE ASC`
@@ -158,14 +159,13 @@ export async function listEpisodes(filter: EpisodeFilter = {}): Promise<Episode[
     where.push(`e.episode_number <= ?`);
     params.push(filter.episodeMax);
   }
-  if (filter.likedOnly) where.push(`e.liked = 1`);
   if (filter.favoritedOnly) where.push(`e.favorited = 1`);
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const orderSql = SORT_SQL[filter.sort ?? "number_asc"];
 
   const rows = await db.select<any[]>(
-    `SELECT e.*, s.title AS show_title
+    `SELECT e.*, s.title AS show_title, s.image_url AS show_image
        FROM episodes e
        JOIN shows s ON s.id = e.show_id
        ${whereSql}
@@ -178,7 +178,7 @@ export async function listEpisodes(filter: EpisodeFilter = {}): Promise<Episode[
 export async function getEpisode(id: number): Promise<Episode | null> {
   const db = await getDb();
   const rows = await db.select<any[]>(
-    `SELECT e.*, s.title AS show_title
+    `SELECT e.*, s.title AS show_title, s.image_url AS show_image
        FROM episodes e JOIN shows s ON s.id = e.show_id
       WHERE e.id = ?`,
     [id]
@@ -225,19 +225,6 @@ export async function deleteEpisode(id: number): Promise<void> {
   await db.execute(`DELETE FROM episodes WHERE id = ?`, [id]);
 }
 
-export async function toggleLike(id: number): Promise<boolean> {
-  const db = await getDb();
-  await db.execute(
-    `UPDATE episodes
-        SET liked = CASE WHEN liked = 1 THEN 0 ELSE 1 END,
-            liked_at = CASE WHEN liked = 1 THEN NULL ELSE datetime('now') END
-      WHERE id = ?`,
-    [id]
-  );
-  const r = await db.select<{ liked: number }[]>(`SELECT liked FROM episodes WHERE id = ?`, [id]);
-  return !!r[0]?.liked;
-}
-
 export async function toggleFavorite(id: number): Promise<boolean> {
   const db = await getDb();
   await db.execute(
@@ -277,7 +264,7 @@ export async function randomEpisode(showIds?: number[]): Promise<Episode | null>
     ? `WHERE e.show_id IN (${showIds.map(() => "?").join(",")})`
     : "";
   const rows = await db.select<any[]>(
-    `SELECT e.*, s.title AS show_title
+    `SELECT e.*, s.title AS show_title, s.image_url AS show_image
        FROM episodes e JOIN shows s ON s.id = e.show_id
        ${where}
       ORDER BY RANDOM() LIMIT 1`,
@@ -364,6 +351,49 @@ export async function deleteFeed(id: number, removeEpisodes = true): Promise<voi
   await db.execute(`DELETE FROM shows WHERE id NOT IN (SELECT DISTINCT show_id FROM episodes)`);
 }
 
+/** Set (or clear, with null) the local downloaded-file path for an episode. */
+export async function setDownloadPath(id: number, path: string | null): Promise<void> {
+  const db = await getDb();
+  await db.execute(`UPDATE episodes SET download_path = ? WHERE id = ?`, [path, id]);
+}
+
+// --------------------------------------------------------------- Settings
+
+export async function getSetting(key: string): Promise<string | null> {
+  const db = await getDb();
+  const rows = await db.select<{ value: string }[]>(
+    `SELECT value FROM settings WHERE key = ?`,
+    [key]
+  );
+  return rows.length ? rows[0].value : null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    [key, value]
+  );
+}
+
+/** N random episodes (optionally within shows) — powers the Up Next shuffle. */
+export async function listRandomEpisodes(limit: number, showIds?: number[]): Promise<Episode[]> {
+  const db = await getDb();
+  const where =
+    showIds && showIds.length
+      ? `WHERE e.show_id IN (${showIds.map(() => "?").join(",")})`
+      : "";
+  const rows = await db.select<any[]>(
+    `SELECT e.*, s.title AS show_title, s.image_url AS show_image
+       FROM episodes e JOIN shows s ON s.id = e.show_id
+       ${where}
+      ORDER BY RANDOM() LIMIT ?`,
+    [...(showIds ?? []), limit]
+  );
+  return rows.map(normalizeEpisode);
+}
+
 // ------------------------------------------------------------ Playlists
 
 export async function listPlaylists(): Promise<Playlist[]> {
@@ -410,7 +440,7 @@ export async function removeFromPlaylist(playlistId: number, episodeId: number):
 export async function listPlaylistEpisodes(playlistId: number): Promise<Episode[]> {
   const db = await getDb();
   const rows = await db.select<any[]>(
-    `SELECT e.*, s.title AS show_title
+    `SELECT e.*, s.title AS show_title, s.image_url AS show_image
        FROM playlist_items pi
        JOIN episodes e ON e.id = pi.episode_id
        JOIN shows s ON s.id = e.show_id

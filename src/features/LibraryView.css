@@ -52,8 +52,30 @@
   font-size: 11px;
 }
 
+.filter-top { flex-direction: row; align-items: center; gap: 10px; }
+.filter-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 15px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-solid);
+  border-radius: 999px;
+}
+.filter-search-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(87, 217, 138, 0.2);
+}
+.filter-search-icon { color: var(--text-dim); flex: 0 0 auto; }
 .filter-search {
   min-width: 0;
+  flex: 1 1 auto;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  font-size: 15px;
 }
 
 .sort-select {
