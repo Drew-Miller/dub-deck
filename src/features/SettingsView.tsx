@@ -7,7 +7,7 @@ import type { JSX } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { getSetting, setSetting } from "../lib/db";
-import { SETTING_KEYS } from "../lib/downloads";
+import { loadToolPath, saveToolPath, type ToolName } from "../lib/downloads";
 import { THEMES, applyTheme } from "../lib/themes";
 import "./SettingsView.css";
 
@@ -17,39 +17,39 @@ function ToolRow({
   label,
   hint,
   name,
-  settingKey,
+  toolKey,
 }: {
   label: string;
   hint: string;
+  /** Binary name for auto-detect (e.g. "yt-dlp", "ffmpeg"). */
   name: string;
-  settingKey: string;
+  /** Config-file key the verified path is saved under. */
+  toolKey: ToolName;
 }): JSX.Element {
   const [path, setPath] = useState("");
   const [status, setStatus] = useState<Status>("unknown");
   const [checking, setChecking] = useState(false);
   const [detecting, setDetecting] = useState(false);
 
+  // Load the saved (already-verified) path from the local config file.
   useEffect(() => {
-    getSetting(settingKey).then((v) => setPath(v ?? "")).catch(() => {});
-  }, [settingKey]);
+    loadToolPath(toolKey).then(setPath).catch(() => {});
+  }, [toolKey]);
 
-  async function persist() {
-    await setSetting(settingKey, path.trim());
-    setStatus("unknown");
-  }
-
+  // A path is only persisted once it verifies, so a typed-but-untested path never
+  // overwrites a previously-working one.
   async function test() {
     setChecking(true);
     try {
-      await setSetting(settingKey, path.trim());
       const ok = await invoke<boolean>("check_tool", { path: path.trim() });
       setStatus(ok ? "ok" : "bad");
+      if (ok) await saveToolPath(toolKey, path);
     } finally {
       setChecking(false);
     }
   }
 
-  // Ask Rust to locate the binary by name and, if found, fill + persist the path.
+  // Ask Rust to locate the binary by name and, if found + working, fill + save it.
   async function detect() {
     setDetecting(true);
     try {
@@ -57,8 +57,8 @@ function ToolRow({
       if (found && found.trim()) {
         const resolved = found.trim();
         setPath(resolved);
-        await setSetting(settingKey, resolved);
         setStatus("ok");
+        await saveToolPath(toolKey, resolved);
       } else {
         setStatus("bad");
       }
@@ -83,8 +83,7 @@ function ToolRow({
           className="grow"
           placeholder="Path to the binary (e.g. C:\\tools\\yt-dlp.exe or /usr/local/bin/yt-dlp)"
           value={path}
-          onChange={(e) => setPath(e.target.value)}
-          onBlur={() => void persist()}
+          onChange={(e) => { setPath(e.target.value); setStatus("unknown"); }}
         />
         <button className="btn btn-ghost" onClick={() => void detect()} disabled={detecting}>
           {detecting ? "Searching…" : "Find automatically"}
@@ -150,13 +149,13 @@ export default function SettingsView(): JSX.Element {
           label="yt-dlp"
           hint="Enables downloading (and scrape-playback) of YouTube / Vimeo sources."
           name="yt-dlp"
-          settingKey={SETTING_KEYS.ytdlp}
+          toolKey="ytdlp"
         />
         <ToolRow
           label="ffmpeg"
           hint="Enables downloading HLS (.m3u8) streams to a single file."
           name="ffmpeg"
-          settingKey={SETTING_KEYS.ffmpeg}
+          toolKey="ffmpeg"
         />
       </section>
 

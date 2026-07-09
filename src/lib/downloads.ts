@@ -6,15 +6,40 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { getSetting, setDownloadPath } from "./db";
+import { setDownloadPath } from "./db";
 import { isHlsUrl } from "./sources";
 import type { Episode } from "../types";
 
-/** Settings keys for the opt-in external tools. */
-export const SETTING_KEYS = {
-  ytdlp: "tool.ytdlp",
-  ffmpeg: "tool.ffmpeg",
-} as const;
+export type ToolName = "ytdlp" | "ffmpeg";
+
+/** Verified external-tool paths, persisted to a local config file (<app_data>/tools.json)
+ *  by the Rust read_tool_config / write_tool_config commands. */
+export interface ToolConfig {
+  ytdlp: string;
+  ffmpeg: string;
+}
+
+/** Read the persisted tool paths from the local config file (empty on any failure). */
+export async function loadToolConfig(): Promise<ToolConfig> {
+  try {
+    const c = await invoke<Partial<ToolConfig>>("read_tool_config");
+    return { ytdlp: c.ytdlp ?? "", ffmpeg: c.ffmpeg ?? "" };
+  } catch {
+    return { ytdlp: "", ffmpeg: "" };
+  }
+}
+
+/** The saved path for one tool ("" if unset). */
+export async function loadToolPath(name: ToolName): Promise<string> {
+  return (await loadToolConfig())[name] ?? "";
+}
+
+/** Persist one tool's verified path into the config file, preserving the other. */
+export async function saveToolPath(name: ToolName, path: string): Promise<void> {
+  const c = await loadToolConfig();
+  c[name] = path.trim();
+  await invoke("write_tool_config", { ytdlp: c.ytdlp, ffmpeg: c.ffmpeg });
+}
 
 export interface Tools {
   ytdlp: boolean;
@@ -30,11 +55,8 @@ export type DownloadState =
 
 /** Read whether each external tool is configured (a non-empty path is set). */
 export async function loadTools(): Promise<Tools> {
-  const [y, f] = await Promise.all([
-    getSetting(SETTING_KEYS.ytdlp),
-    getSetting(SETTING_KEYS.ffmpeg),
-  ]);
-  return { ytdlp: !!y?.trim(), ffmpeg: !!f?.trim() };
+  const c = await loadToolConfig();
+  return { ytdlp: !!c.ytdlp.trim(), ffmpeg: !!c.ffmpeg.trim() };
 }
 
 /** React hook: load the configured tools, re-reading when `version` changes
@@ -80,7 +102,7 @@ export async function downloadEpisode(ep: Episode): Promise<string> {
   let dest: string;
   if (ep.source_type === "direct_url" || ep.source_type === "rss") {
     if (isHlsUrl(url)) {
-      const ffmpeg = (await getSetting(SETTING_KEYS.ffmpeg)) ?? "";
+      const ffmpeg = await loadToolPath("ffmpeg");
       dest = await join(dir, `${ep.id}.mp4`);
       await invoke("download_hls", { url, dest, ffmpeg });
     } else {
@@ -89,7 +111,7 @@ export async function downloadEpisode(ep: Episode): Promise<string> {
       await invoke("download_media", { url, dest });
     }
   } else if (ep.source_type === "youtube" || ep.source_type === "vimeo" || ep.source_type === "scrape") {
-    const ytdlp = (await getSetting(SETTING_KEYS.ytdlp)) ?? "";
+    const ytdlp = await loadToolPath("ytdlp");
     dest = await join(dir, `${ep.id}.mp4`);
     await invoke("download_scrape", { url, dest, ytdlp });
   } else {

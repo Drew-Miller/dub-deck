@@ -5,13 +5,12 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { registerScrapeResolver } from "./sources";
-import { getSetting } from "./db";
-import { SETTING_KEYS } from "./downloads";
+import { loadToolPath } from "./downloads";
 
 export function enableYtDlpScrape(): void {
   registerScrapeResolver({
     resolve: async (sourceUrl: string) => {
-      const ytdlp = (await getSetting(SETTING_KEYS.ytdlp)) ?? "";
+      const ytdlp = await loadToolPath("ytdlp");
       const r = await invoke<{ stream_url: string; is_hls: boolean }>("resolve_scrape", {
         url: sourceUrl,
         ytdlp,

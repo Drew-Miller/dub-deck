@@ -128,23 +128,59 @@ fn resolve_scrape(url: String, ytdlp: String) -> Result<ScrapeResult, String> {
     Ok(ScrapeResult { stream_url, is_hls })
 }
 
-/// True if the given binary path runs `--version` successfully (Settings tool status).
-#[tauri::command]
-fn check_tool(path: String) -> bool {
-    if path.trim().is_empty() {
+/// True if `path` is a runnable version of the tool. Tries both `--version`
+/// (yt-dlp) and `-version` (ffmpeg's single-dash flag) so a valid ffmpeg isn't
+/// reported as missing. Surrounding quotes/whitespace (common when pasting a
+/// Windows path) are stripped first.
+fn tool_responds(path: &str) -> bool {
+    let p = path.trim().trim_matches('"').trim();
+    if p.is_empty() {
         return false;
     }
-    std::process::Command::new(&path)
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    ["--version", "-version"].iter().any(|flag| {
+        std::process::Command::new(p)
+            .arg(flag)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
+}
+
+/// True if the given binary path runs a version query successfully (Settings tool status).
+#[tauri::command]
+fn check_tool(path: String) -> bool {
+    tool_responds(&path)
+}
+
+/// Recursively search `dir` (bounded by `depth`) for a file named exactly `name`,
+/// returning the first match. Used to dig binaries out of WinGet's per-package
+/// folders (e.g. ffmpeg lands in `WinGet\Packages\Gyan.FFmpeg_*\...\bin\ffmpeg.exe`).
+fn find_binary(dir: &std::path::Path, name: &str, depth: u8) -> Option<String> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut subdirs: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            subdirs.push(path);
+        } else if path.file_name().and_then(|n| n.to_str()) == Some(name) {
+            return path.to_str().map(|s| s.to_string());
+        }
+    }
+    if depth == 0 {
+        return None;
+    }
+    for sub in subdirs {
+        if let Some(hit) = find_binary(&sub, name, depth - 1) {
+            return Some(hit);
+        }
+    }
+    None
 }
 
 /// Auto-locate an installed binary (`yt-dlp`, `ffmpeg`, …) so non-technical users
-/// don't have to hunt for a path. Builds a candidate list — first from the OS
-/// locator (`where` on Windows, `which` on unix), then common install locations —
-/// and returns the first candidate whose `--version` succeeds, else `None`.
+/// don't have to hunt for a path. Builds a candidate list — the OS locator
+/// (`where`/`which`), common install locations, and a bounded scan of WinGet's
+/// package folders — and returns the first candidate that responds, else `None`.
 #[tauri::command]
 fn detect_tool(name: String) -> Option<String> {
     let name = name.trim();
@@ -188,11 +224,22 @@ fn detect_tool(name: String) -> Option<String> {
     // 2) Append common install locations (env-based paths skipped if unset).
     #[cfg(windows)]
     {
+        let exe = format!("{name}.exe");
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            candidates.push(format!("{local}\\Microsoft\\WinGet\\Links\\{name}.exe"));
+            candidates.push(format!("{local}\\Microsoft\\WinGet\\Links\\{exe}"));
+            // WinGet extracts zip packages (like Gyan.FFmpeg) under Packages\ without a
+            // Links shim, so scan that tree for the binary.
+            let packages = std::path::Path::new(&local).join("Microsoft\\WinGet\\Packages");
+            if let Some(hit) = find_binary(&packages, &exe, 6) {
+                candidates.push(hit);
+            }
         }
-        candidates.push(format!("C:\\ProgramData\\chocolatey\\bin\\{name}.exe"));
-        candidates.push(format!("C:\\Program Files\\{name}\\bin\\{name}.exe"));
+        if let Ok(home) = std::env::var("USERPROFILE") {
+            candidates.push(format!("{home}\\scoop\\shims\\{exe}"));
+        }
+        candidates.push(format!("C:\\ProgramData\\chocolatey\\bin\\{exe}"));
+        candidates.push(format!("C:\\Program Files\\{name}\\bin\\{exe}"));
+        candidates.push(format!("C:\\{name}\\bin\\{exe}"));
     }
     #[cfg(not(windows))]
     {
@@ -204,14 +251,42 @@ fn detect_tool(name: String) -> Option<String> {
         }
     }
 
-    // 3) Verify each candidate the same way check_tool does; first hit wins.
-    candidates.into_iter().find(|candidate| {
-        std::process::Command::new(candidate)
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-    })
+    // 3) Verify each candidate; first one that responds wins.
+    candidates.into_iter().find(|candidate| tool_responds(candidate))
+}
+
+/// Verified tool paths, persisted to `<app_data>/tools.json` (see read/write below).
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct ToolConfig {
+    #[serde(default)]
+    ytdlp: String,
+    #[serde(default)]
+    ffmpeg: String,
+}
+
+fn tool_config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    Some(app.path().app_data_dir().ok()?.join("tools.json"))
+}
+
+/// Read the persisted tool paths. Missing/unreadable file → empty config.
+#[tauri::command]
+fn read_tool_config(app: tauri::AppHandle) -> ToolConfig {
+    tool_config_path(&app)
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+/// Persist verified tool paths to the local config file (JSON).
+#[tauri::command]
+fn write_tool_config(app: tauri::AppHandle, ytdlp: String, ffmpeg: String) -> Result<(), String> {
+    let path = tool_config_path(&app).ok_or("no app data dir")?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let cfg = ToolConfig { ytdlp, ffmpeg };
+    let json = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
 }
 
 /// Download a direct media file (mp4/etc.) to `dest`, streaming to disk.
@@ -481,6 +556,8 @@ pub fn run() {
             resolve_scrape,
             check_tool,
             detect_tool,
+            read_tool_config,
+            write_tool_config,
             download_media,
             download_hls,
             download_scrape,

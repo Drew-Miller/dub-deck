@@ -202,6 +202,21 @@ Dates are absolute. Format: `YYYY-MM-DD — decision — why`.
   Fetched Rust-side via the http plugin to bypass CORS. — No YouTube Data API needed; "if
   possible" best-effort per the user.
 
+## Tools config (round 2)
+- **2026-07-09** — **Tool verification tries `--version` and `-version`.** ffmpeg's flag is
+  single-dash (`-version`); the old `--version`-only probe reported a valid ffmpeg as "not
+  found" (it launched but exited nonzero). `tool_responds` now succeeds if either flag exits 0,
+  and strips surrounding quotes/whitespace from pasted paths. — Root cause of "Test fails even
+  with a correct ffmpeg path".
+- **2026-07-09** — **`detect_tool` also scans WinGet's package folders** (bounded recursive
+  search) plus scoop/choco/Program Files/`C:\<name>\bin`, because zip packages like Gyan.FFmpeg
+  install under `WinGet\Packages\...\bin\` with no `Links` shim, so `where ffmpeg` misses them.
+- **2026-07-09** — **Verified tool paths live in a local JSON config file** (`<app_data>/
+  tools.json`, Rust `read_tool_config`/`write_tool_config`), not the SQLite `settings` table. A
+  path is written **only after it verifies** (Test or auto-detect), so a typed-but-untested path
+  never clobbers a working one. `loadTools`/`downloadEpisode`/`scrapeBackend` read from the file.
+  — User asked for tool paths saved to a local config file once tested and working.
+
 ## Docs layout
 - **2026-07-07** — All living docs (`ARCHITECTURE.md`, `decisions.md`, `handoff.md`) live in a
   root **`docs/`** folder (moved out of `.claude/docs/`). `CLAUDE.md` stays at root (Claude Code
