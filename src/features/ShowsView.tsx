@@ -6,8 +6,9 @@ import type { JSX } from "react";
 import { listShowsRecent, listEpisodes, toggleShowFavorite } from "../lib/db";
 import { imageSrc } from "../lib/sources";
 import { usePlayer, useLibraryVersion, useBumpLibrary } from "../lib/state";
+import { useTools } from "../lib/downloads";
 import type { Show, Episode } from "../types";
-import RowThumb from "./RowThumb";
+import EpisodeRow from "./EpisodeRow";
 import ShowEditDialog from "./ShowEditDialog";
 import "./ShowsView.css";
 import "./Sidebars.css";
@@ -17,9 +18,10 @@ function initialOf(s: string | null | undefined): string {
 }
 
 export default function ShowsView({ openId }: { openId?: number }): JSX.Element {
-  const { play, playQueue } = usePlayer();
+  const { playQueue } = usePlayer();
   const version = useLibraryVersion();
   const bump = useBumpLibrary();
+  const tools = useTools(version);
   const [shows, setShows] = useState<Show[]>([]);
   const [selected, setSelected] = useState<Show | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
@@ -66,29 +68,10 @@ export default function ShowsView({ openId }: { openId?: number }): JSX.Element 
             ▶ Play all
           </button>
         </div>
-        <div className="card dd-panel dd-panel-main">
-          <div className="dd-list scroll-y">
-            {episodes.map((ep, i) => (
-              <div
-                key={ep.id}
-                className="dd-row"
-                role="button"
-                tabIndex={0}
-                onClick={() => play(ep, episodes, selected.title)}
-                onKeyDown={(e) => { if (e.key === "Enter") play(ep, episodes, selected.title); }}
-              >
-                <RowThumb ep={ep} />
-                <span className="dd-row-num">
-                  <span className="dd-row-index">{ep.episode_number ?? i + 1}</span>
-                  <span className="dd-row-play" aria-hidden="true">▶</span>
-                </span>
-                <span className="dd-row-body">
-                  <span className="dd-row-title truncate">{ep.title}</span>
-                  <span className="dd-row-sub truncate">{ep.show_title}</span>
-                </span>
-              </div>
-            ))}
-          </div>
+        <div className="episode-list scroll-y">
+          {episodes.map((ep) => (
+            <EpisodeRow key={ep.id} episode={ep} list={episodes} label={selected.title} tools={tools} />
+          ))}
         </div>
       </div>
     );
@@ -96,10 +79,6 @@ export default function ShowsView({ openId }: { openId?: number }): JSX.Element 
 
   return (
     <div className="shows-view">
-      <div>
-        <h2 className="dd-view-title">Shows</h2>
-        <p className="dd-view-sub">Your shows, most recently updated first.</p>
-      </div>
       {shows.length === 0 ? (
         <div className="dd-empty">
           <span className="dd-empty-icon" aria-hidden="true">▦</span>

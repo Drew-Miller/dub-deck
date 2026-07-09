@@ -9,15 +9,25 @@ import { appDataDir, join } from "@tauri-apps/api/path";
 import { getSetting, setSetting } from "../lib/db";
 import { SETTING_KEYS } from "../lib/downloads";
 import { THEMES, applyTheme } from "../lib/themes";
-import FeedsView from "./FeedsView";
 import "./SettingsView.css";
 
 type Status = "unknown" | "ok" | "bad";
 
-function ToolRow({ label, hint, settingKey }: { label: string; hint: string; settingKey: string }): JSX.Element {
+function ToolRow({
+  label,
+  hint,
+  name,
+  settingKey,
+}: {
+  label: string;
+  hint: string;
+  name: string;
+  settingKey: string;
+}): JSX.Element {
   const [path, setPath] = useState("");
   const [status, setStatus] = useState<Status>("unknown");
   const [checking, setChecking] = useState(false);
+  const [detecting, setDetecting] = useState(false);
 
   useEffect(() => {
     getSetting(settingKey).then((v) => setPath(v ?? "")).catch(() => {});
@@ -36,6 +46,24 @@ function ToolRow({ label, hint, settingKey }: { label: string; hint: string; set
       setStatus(ok ? "ok" : "bad");
     } finally {
       setChecking(false);
+    }
+  }
+
+  // Ask Rust to locate the binary by name and, if found, fill + persist the path.
+  async function detect() {
+    setDetecting(true);
+    try {
+      const found = await invoke<string | null>("detect_tool", { name });
+      if (found && found.trim()) {
+        const resolved = found.trim();
+        setPath(resolved);
+        await setSetting(settingKey, resolved);
+        setStatus("ok");
+      } else {
+        setStatus("bad");
+      }
+    } finally {
+      setDetecting(false);
     }
   }
 
@@ -58,6 +86,9 @@ function ToolRow({ label, hint, settingKey }: { label: string; hint: string; set
           onChange={(e) => setPath(e.target.value)}
           onBlur={() => void persist()}
         />
+        <button className="btn btn-ghost" onClick={() => void detect()} disabled={detecting}>
+          {detecting ? "Searching…" : "Find automatically"}
+        </button>
         <button className="btn btn-ghost" onClick={() => void test()} disabled={!path.trim() || checking}>
           {checking ? "Testing…" : "Test"}
         </button>
@@ -118,11 +149,13 @@ export default function SettingsView(): JSX.Element {
         <ToolRow
           label="yt-dlp"
           hint="Enables downloading (and scrape-playback) of YouTube / Vimeo sources."
+          name="yt-dlp"
           settingKey={SETTING_KEYS.ytdlp}
         />
         <ToolRow
           label="ffmpeg"
           hint="Enables downloading HLS (.m3u8) streams to a single file."
+          name="ffmpeg"
           settingKey={SETTING_KEYS.ffmpeg}
         />
       </section>
@@ -131,11 +164,6 @@ export default function SettingsView(): JSX.Element {
         <h3>Downloads</h3>
         <p className="mute">Downloaded episodes are stored here and play offline.</p>
         <code className="settings-path">{downloadsDir}</code>
-      </section>
-
-      <section className="settings-section">
-        <h3 className="settings-sources-head">Sources</h3>
-        <FeedsView />
       </section>
     </div>
   );

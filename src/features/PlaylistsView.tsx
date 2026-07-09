@@ -8,26 +8,16 @@ import {
   removeFromPlaylist,
 } from "../lib/db";
 import { usePlayer, useLibraryVersion, useBumpLibrary } from "../lib/state";
+import { useTools } from "../lib/downloads";
 import type { Playlist, Episode } from "../types";
-import RowThumb from "./RowThumb";
+import EpisodeRow from "./EpisodeRow";
 import "./Sidebars.css";
 
-/** Format an ISO 'YYYY-MM-DD' date into something compact and readable. */
-function formatDate(date: string | null): string {
-  if (!date) return "";
-  const parsed = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export default function PlaylistsView({ openId }: { openId?: number }): JSX.Element {
-  const { play, playQueue } = usePlayer();
+  const { playQueue } = usePlayer();
   const version = useLibraryVersion();
   const bump = useBumpLibrary();
+  const tools = useTools(version);
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -110,11 +100,6 @@ export default function PlaylistsView({ openId }: { openId?: number }): JSX.Elem
 
   return (
     <div className="dd-view">
-      <div>
-        <h2 className="dd-view-title">Playlists</h2>
-        <p className="dd-view-sub">Group episodes into ordered queues you can play end to end.</p>
-      </div>
-
       <div className="dd-split">
         {/* -------- left: playlist picker -------- */}
         <div className="card dd-panel dd-panel-left">
@@ -163,8 +148,8 @@ export default function PlaylistsView({ openId }: { openId?: number }): JSX.Elem
           )}
         </div>
 
-        {/* -------- right: selected playlist's episodes -------- */}
-        <div className="card dd-panel dd-panel-main">
+        {/* -------- right: selected playlist's episodes (flat, Library-style) -------- */}
+        <div className="dd-panel dd-panel-main">
           {selected == null ? (
             <div className="dd-empty">
               <span className="dd-empty-icon" aria-hidden="true">&#9835;</span>
@@ -208,44 +193,20 @@ export default function PlaylistsView({ openId }: { openId?: number }): JSX.Elem
                   <span>{favOnly ? "No favorites in this playlist." : "This playlist is empty."}</span>
                 </div>
               ) : (
-                <div className="dd-list scroll-y">
-                  {shown.map((ep, i) => (
-                    <div
+                <div className="episode-list scroll-y">
+                  {shown.map((ep) => (
+                    <EpisodeRow
                       key={ep.id}
-                      className="dd-row"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => play(ep, shown, selected.name)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          play(ep, shown, selected.name);
-                        }
-                      }}
-                    >
-                      <RowThumb ep={ep} />
-                      <span className="dd-row-num">
-                        <span className="dd-row-index">{i + 1}</span>
-                        <span className="dd-row-play" aria-hidden="true">&#9654;</span>
-                      </span>
-                      <span className="dd-row-body">
-                        <span className="dd-row-title truncate">{ep.title}</span>
-                        <span className="dd-row-sub truncate">{ep.show_title}</span>
-                      </span>
-                      <span className="dd-row-date">{formatDate(ep.published_date)}</span>
-                      <button
-                        type="button"
-                        className="icon-btn dd-row-remove"
-                        aria-label="Remove from playlist"
-                        title="Remove from playlist"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemove(ep.id);
-                        }}
-                      >
-                        <span aria-hidden="true">&#10005;</span>
-                      </button>
-                    </div>
+                      episode={ep}
+                      list={shown}
+                      label={selected.name}
+                      tools={tools}
+                      extraMenuItems={
+                        <button role="menuitem" onClick={() => void handleRemove(ep.id)}>
+                          <span className="row-menu-icon" aria-hidden="true">✕</span> Remove from playlist
+                        </button>
+                      }
+                    />
                   ))}
                 </div>
               )}

@@ -181,6 +181,27 @@ Dates are absolute. Format: `YYYY-MM-DD — decision — why`.
   (assert the WHERE/ORDER a filter produces and the queue's advance order, not private helpers). —
   Tests should survive refactors and encode intended behavior.
 
+## Episode views / import (round 2)
+- **2026-07-09** — **One shared episode row** (`src/features/EpisodeRow.tsx` + `EpisodeRow.css`)
+  is used by Library, Favorites, Recently Listened, Playlists, and Show detail, so every episode
+  list looks and behaves identically (flat surface, thumbnail, source badge, progress, hover
+  Download, ⋯ menu). The old per-view `card dd-panel` + `dd-row` markup and the per-view page
+  titles were removed. Views pass the ordered `list` + `label` for the playback context; per-view
+  extras (e.g. playlist "Remove from playlist") go through the row's `extraMenuItems` prop. Tools
+  state is shared via a `useTools(version)` hook in `downloads.ts`. — User: "all episode-based
+  viewing should be similar to the Library view."
+- **2026-07-09** — **Auto-detect external tools**: Rust `detect_tool(name)` locates a binary via
+  `where`/`which` plus common install dirs (winget/choco/Program Files, homebrew, /usr/local/bin,
+  ~/.local/bin), verified with `--version`; Settings › Tools gets a "Find automatically" button
+  that fills the path. — Most users don't know where yt-dlp/ffmpeg installed.
+- **2026-07-09** — **Feeds UI removed from Settings** (feed data + refresh logic stay). — User
+  request; the Sources panel was clutter.
+- **2026-07-09** — **Channel art fills an empty show thumbnail on import** (`setShowImageIfEmpty`,
+  never overwrites a user cover): RSS channel/iTunes image; for YouTube/Vimeo a best-effort
+  `og:image` scraped from the channel page (`author_url`), falling back to the video thumbnail.
+  Fetched Rust-side via the http plugin to bypass CORS. — No YouTube Data API needed; "if
+  possible" best-effort per the user.
+
 ## Docs layout
 - **2026-07-07** — All living docs (`ARCHITECTURE.md`, `decisions.md`, `handoff.md`) live in a
   root **`docs/`** folder (moved out of `.claude/docs/`). `CLAUDE.md` stays at root (Claude Code

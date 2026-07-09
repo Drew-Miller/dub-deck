@@ -34,6 +34,16 @@ test.describe("app shell — relative placement", () => {
   });
 });
 
+test.describe("episode views — Library-style consistency", () => {
+  test("Favorites renders the shared episode row, not the old card list", async ({ page }) => {
+    await page.getByRole("button", { name: /Favorites/ }).first().click();
+    await page.locator(".episode-row").first().waitFor();
+    expect(await page.locator(".episode-row").count()).toBeGreaterThan(0);
+    // the retired dd-row card-list markup must be gone from episode views
+    expect(await page.locator(".dd-row").count()).toBe(0);
+  });
+});
+
 test.describe("player — relative placement", () => {
   test("clicking an episode opens a player that FILLS the window", async ({ page }) => {
     await page.locator(".episode-row").first().click();

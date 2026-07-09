@@ -14,6 +14,7 @@ import {
   getFeed,
   touchFeed,
   feedEpisodeExists,
+  setShowImageIfEmpty,
 } from "./db";
 import { parseEpisodeNumber } from "./importer";
 import { detectProvider } from "./sources";
@@ -70,6 +71,7 @@ export async function addDirectUrl(
 interface OembedMeta {
   title?: string;
   author?: string;
+  authorUrl?: string;
   thumbnail?: string;
 }
 
@@ -88,12 +90,28 @@ async function fetchOembed(provider: EmbedProvider, url: string): Promise<Oembed
     return {
       title: typeof j.title === "string" ? j.title : undefined,
       author: typeof j.author_name === "string" ? j.author_name : undefined,
+      authorUrl: typeof j.author_url === "string" ? j.author_url : undefined,
       thumbnail: typeof j.thumbnail_url === "string" ? j.thumbnail_url : undefined,
     };
   } catch (e) {
     // Enrichment is best-effort: fall back to a URL-derived title, but log it.
     log.warn("remoteSources: oembed failed", { provider, error: String(e) });
     return {};
+  }
+}
+
+/** Best-effort: fetch a channel/author page and pull its og:image (the channel
+ *  avatar/art). Returns null on any failure — enrichment is never fatal. */
+async function fetchChannelImage(pageUrl: string | undefined): Promise<string | null> {
+  if (!pageUrl || !/^https?:\/\//i.test(pageUrl)) return null;
+  try {
+    const html = await fetchText(pageUrl);
+    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    return m ? m[1] : null;
+  } catch (e) {
+    log.warn("remoteSources: channel image fetch failed", { pageUrl, error: String(e) });
+    return null;
   }
 }
 
@@ -104,6 +122,8 @@ export async function addVideoUrl(url: string): Promise<number> {
   const meta = await fetchOembed(provider, trimmed);
   const title = meta.title || titleFromUrl(trimmed);
   const showTitle = meta.author?.trim() || (provider === "youtube" ? "YouTube" : "Vimeo");
+  // Resolve the show up front so we can seed its channel art after creating the episode.
+  const showId = await getOrCreateShow(showTitle);
   const id = await createEpisode({
     showTitle,
     title,
@@ -112,6 +132,10 @@ export async function addVideoUrl(url: string): Promise<number> {
     thumbnail_url: meta.thumbnail ?? null,
     episode_number: parseEpisodeNumber(title),
   });
+  // Prefer the channel page's og:image (channel art); fall back to the video
+  // thumbnail so the show tile is never blank. Only fills when empty.
+  const channelImg = await fetchChannelImage(meta.authorUrl);
+  await setShowImageIfEmpty(showId, channelImg ?? meta.thumbnail ?? null);
   log.info("remoteSources: video url added", { id, provider, url: trimmed });
   return id;
 }
@@ -266,6 +290,8 @@ export async function addFeed(feedUrl: string): Promise<{ feedId: number; added:
   const parsed = parseFeed(xml);
   const showTitle = parsed.title?.trim() || hostOf(url);
   const showId = await getOrCreateShow(showTitle);
+  // Seed the show's cover with the feed's channel/iTunes art if it has none yet.
+  await setShowImageIfEmpty(showId, parsed.image);
   const feedId = await getOrCreateFeed(url, {
     title: parsed.title,
     site_url: parsed.siteUrl,
@@ -284,6 +310,8 @@ export async function refreshFeed(feedId: number): Promise<{ added: number }> {
   const xml = await fetchText(feed.feed_url);
   const parsed = parseFeed(xml);
   const showTitle = feed.title?.trim() || parsed.title?.trim() || hostOf(feed.feed_url);
+  // Backfill channel art on refresh for shows still missing a cover.
+  if (feed.show_id != null) await setShowImageIfEmpty(feed.show_id, parsed.image);
   const added = await ingestItems(feedId, showTitle, parsed);
   await touchFeed(feedId);
   log.info("remoteSources: feed refreshed", { feedId, added });

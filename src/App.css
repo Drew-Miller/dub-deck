@@ -157,7 +157,16 @@
 .app-nav-item.active .app-nav-icon { color: var(--accent); }
 .app-nav-icon { width: 20px; text-align: center; font-size: 16px; }
 
-.app-sidebar-foot { margin-top: auto; font-size: 11px; padding: 6px; line-height: 1.4; }
+/* Footer holds the Settings entry; flex-column so the .app-nav-item stretches to
+   full sidebar width like the nav items above it. */
+.app-sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--border-solid);
+  line-height: 1.4;
+}
 
 /* ---- main content ---- */
 .app-main {

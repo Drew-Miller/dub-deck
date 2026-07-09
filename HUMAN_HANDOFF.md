@@ -43,3 +43,10 @@ User/State settings
 - ✅ Played progress is tracked and videos resume where you left off (finished state recorded).
 - ✅ Progress bars appear on episode rows (plus a finished ✓).
 - ✅ The sidebar is editable (Edit sidebar): show/hide system items, reorder (↑/↓), and pin playlists/shows; persisted.
+
+Round 2 (2026-07-09)
+- ✅ Every episode view (Favorites, Recently Listened, Playlists, Show detail) uses the shared Library row (`EpisodeRow`): flat surface, thumbnail, source badge, progress, hover Download, ⋯ menu. Per-view page titles removed; the retired card/`dd-row` markup is gone.
+- ✅ Settings › Tools has a "Find automatically" button that auto-detects yt-dlp/ffmpeg (Rust `detect_tool`: `where`/`which` + common install dirs, verified with `--version`) and fills the path.
+- ✅ The Feeds/Sources area was removed from Settings.
+- ✅ On import, the channel image becomes the show thumbnail when the show has none: RSS channel/iTunes image, and a best-effort og:image scraped from a YouTube/Vimeo channel page (falls back to the video thumbnail).
+- ✅ The sidebar Settings button now stretches to full sidebar width like the other nav items.

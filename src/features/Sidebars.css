@@ -25,6 +25,9 @@
   color: var(--text-dim);
 }
 
+/* compact controls row above a flat episode list (replaces the old card head) */
+.dd-toolbar { flex: 0 0 auto; align-items: center; gap: 10px; }
+
 /* two-column split (playlists: list on the left, episodes on the right) */
 .dd-split {
   display: flex;

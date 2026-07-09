@@ -3,6 +3,7 @@
 // episode to play locally. HLS needs a user-configured ffmpeg; YouTube/Vimeo need
 // a user-configured yt-dlp (both set in Settings). MP4/direct downloads are native.
 
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { getSetting, setDownloadPath } from "./db";
@@ -34,6 +35,20 @@ export async function loadTools(): Promise<Tools> {
     getSetting(SETTING_KEYS.ffmpeg),
   ]);
   return { ytdlp: !!y?.trim(), ffmpeg: !!f?.trim() };
+}
+
+/** React hook: load the configured tools, re-reading when `version` changes
+ *  (pass the library-refresh version so newly-set Settings paths take effect). */
+export function useTools(version?: number): Tools {
+  const [tools, setTools] = useState<Tools>({ ytdlp: false, ffmpeg: false });
+  useEffect(() => {
+    let cancelled = false;
+    loadTools()
+      .then((t) => { if (!cancelled) setTools(t); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [version]);
+  return tools;
 }
 
 /** Compute the download control state for an episode given the configured tools. */

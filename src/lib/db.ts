@@ -458,6 +458,17 @@ export async function setShowImage(id: number, url: string | null): Promise<void
   await db.execute(`UPDATE shows SET image_url = ? WHERE id = ?`, [url, id]);
 }
 
+/** Set a show's image only when it has none yet (import-time channel art; never
+ *  overwrites a user-set cover). No-op on empty url. */
+export async function setShowImageIfEmpty(id: number, url: string | null): Promise<void> {
+  if (!url) return;
+  const db = await getDb();
+  await db.execute(
+    `UPDATE shows SET image_url = ? WHERE id = ? AND (image_url IS NULL OR image_url = '')`,
+    [url, id]
+  );
+}
+
 // --------------------------------------------------------------- Settings
 
 export async function getSetting(key: string): Promise<string | null> {

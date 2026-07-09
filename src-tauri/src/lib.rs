@@ -141,6 +141,79 @@ fn check_tool(path: String) -> bool {
         .unwrap_or(false)
 }
 
+/// Auto-locate an installed binary (`yt-dlp`, `ffmpeg`, …) so non-technical users
+/// don't have to hunt for a path. Builds a candidate list — first from the OS
+/// locator (`where` on Windows, `which` on unix), then common install locations —
+/// and returns the first candidate whose `--version` succeeds, else `None`.
+#[tauri::command]
+fn detect_tool(name: String) -> Option<String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+
+    let mut candidates: Vec<String> = Vec::new();
+
+    // 1) Ask the OS where the binary lives. Each stdout line is a candidate.
+    #[cfg(windows)]
+    {
+        // On Windows also try the `.exe` form so `where` finds it either way.
+        for query in [name.to_string(), format!("{name}.exe")] {
+            if let Ok(out) = std::process::Command::new("where").arg(&query).output() {
+                if out.status.success() {
+                    for line in String::from_utf8_lossy(&out.stdout).lines() {
+                        let line = line.trim();
+                        if !line.is_empty() {
+                            candidates.push(line.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        if let Ok(out) = std::process::Command::new("which").arg(name).output() {
+            if out.status.success() {
+                for line in String::from_utf8_lossy(&out.stdout).lines() {
+                    let line = line.trim();
+                    if !line.is_empty() {
+                        candidates.push(line.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // 2) Append common install locations (env-based paths skipped if unset).
+    #[cfg(windows)]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            candidates.push(format!("{local}\\Microsoft\\WinGet\\Links\\{name}.exe"));
+        }
+        candidates.push(format!("C:\\ProgramData\\chocolatey\\bin\\{name}.exe"));
+        candidates.push(format!("C:\\Program Files\\{name}\\bin\\{name}.exe"));
+    }
+    #[cfg(not(windows))]
+    {
+        candidates.push(format!("/opt/homebrew/bin/{name}"));
+        candidates.push(format!("/usr/local/bin/{name}"));
+        candidates.push(format!("/usr/bin/{name}"));
+        if let Ok(home) = std::env::var("HOME") {
+            candidates.push(format!("{home}/.local/bin/{name}"));
+        }
+    }
+
+    // 3) Verify each candidate the same way check_tool does; first hit wins.
+    candidates.into_iter().find(|candidate| {
+        std::process::Command::new(candidate)
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
+}
+
 /// Download a direct media file (mp4/etc.) to `dest`, streaming to disk.
 #[tauri::command]
 fn download_media(url: String, dest: String) -> Result<(), String> {
@@ -407,6 +480,7 @@ pub fn run() {
             append_log,
             resolve_scrape,
             check_tool,
+            detect_tool,
             download_media,
             download_hls,
             download_scrape,
