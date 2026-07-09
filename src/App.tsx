@@ -63,6 +63,8 @@ function App() {
   const [sidebar, setSidebar] = useState<Entry[]>(DEFAULT_SIDEBAR);
   const [editingSidebar, setEditingSidebar] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const overRef = useRef<number | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [shows, setShows] = useState<Show[]>([]);
   const [openPlaylist, setOpenPlaylist] = useState<number | undefined>(undefined);
@@ -147,14 +149,32 @@ function App() {
   }
   const toggleVisible = (i: number) =>
     saveSidebar(sidebar.map((e, idx) => (idx === i ? { ...e, visible: !e.visible } : e)));
-  const onDropAt = (dropIndex: number) => {
-    if (dragIndex == null || dragIndex === dropIndex) return;
+  const reorder = (from: number, to: number) => {
+    if (from === to) return;
     const next = sidebar.slice();
-    const [moved] = next.splice(dragIndex, 1);
-    next.splice(dropIndex, 0, moved);
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
     saveSidebar(next);
-    setDragIndex(null);
   };
+
+  // Pointer-based drag reorder (HTML5 DnD is flaky in WebView2). Grab the ⠿ handle.
+  useEffect(() => {
+    if (dragIndex == null) return;
+    const onUp = () => {
+      const from = dragIndex;
+      const to = overRef.current;
+      if (from != null && to != null) reorder(from, to);
+      setDragIndex(null);
+      setOverIndex(null);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragIndex, sidebar]);
   const removeEntry = (i: number) => saveSidebar(sidebar.filter((_, idx) => idx !== i));
   const addPin = (kind: "playlist" | "show", id: number) => {
     if (sidebar.some((e) => e.kind === kind && e.id === id)) return;
@@ -207,6 +227,16 @@ function App() {
           </button>
         </div>
 
+        <div className="app-nav-head">
+          <button
+            className={`app-edit-pin${editingSidebar ? " editing" : ""}`}
+            onClick={() => setEditingSidebar((v) => !v)}
+            title={editingSidebar ? "Save sidebar layout" : "Edit sidebar"}
+          >
+            <span className="app-edit-pin-icon" aria-hidden="true">📌</span>
+            {editingSidebar ? "SAVE" : "EDIT"}
+          </button>
+        </div>
         <nav className="app-nav scroll-y">
           {sidebar.map((entry, i) => {
             const m = entryMeta(entry);
@@ -216,14 +246,14 @@ function App() {
               return (
                 <div
                   key={`${entry.kind}-${entry.id}`}
-                  className={`app-nav-edit${dragIndex === i ? " dragging" : ""}`}
-                  draggable
-                  onDragStart={() => setDragIndex(i)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => onDropAt(i)}
-                  onDragEnd={() => setDragIndex(null)}
+                  className={`app-nav-edit${dragIndex === i ? " dragging" : ""}${overIndex === i && dragIndex !== i ? " over" : ""}`}
+                  onMouseEnter={() => { if (dragIndex != null) { overRef.current = i; setOverIndex(i); } }}
                 >
-                  <span className="app-nav-drag" aria-hidden="true">⠿</span>
+                  <span
+                    className="app-nav-drag"
+                    title="Drag to reorder"
+                    onMouseDown={() => { overRef.current = i; setOverIndex(i); setDragIndex(i); }}
+                  >⠿</span>
                   <button
                     className={`app-nav-toggle${entry.visible ? " on" : ""}`}
                     onClick={() => toggleVisible(i)}
@@ -268,11 +298,6 @@ function App() {
               )}
             </div>
           )}
-
-          <button className="app-nav-item app-sidebar-edit" onClick={() => setEditingSidebar((v) => !v)}>
-            <span className="app-nav-icon">✎</span>
-            {editingSidebar ? "Done" : "Edit sidebar"}
-          </button>
         </nav>
 
         <div className="app-sidebar-foot">

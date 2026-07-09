@@ -99,10 +99,10 @@
 /* prominent, glowing, circular play button (80s-scifi) */
 .ddp-play {
   color: var(--accent) !important;
-  border: 1px solid #1c3a22;
+  border: 1px solid var(--border-solid);
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 45%, #12301d, #0a130d);
-  box-shadow: 0 0 16px #57d98a44, var(--bevel);
+  background: radial-gradient(circle at 50% 45%, var(--bg-hover), var(--bg-elev-2));
+  box-shadow: var(--bevel);
 }
 .ddp-play:hover { color: #baf7cf !important; box-shadow: var(--glow-accent); }
 .ddp-expanded .ddp-play { width: 58px; height: 58px; }
@@ -202,7 +202,7 @@
   align-items: center;
   gap: 8px;
   padding: 0 14px;
-  background: linear-gradient(180deg, #0c130f, #080b09);
+  background: linear-gradient(180deg, var(--bg-elev), var(--bg-base));
   border-top: 1px solid var(--border-solid);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
 }
