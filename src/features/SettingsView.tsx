@@ -8,6 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { getSetting, setSetting } from "../lib/db";
 import { SETTING_KEYS } from "../lib/downloads";
+import { THEMES, applyTheme } from "../lib/themes";
 import FeedsView from "./FeedsView";
 import "./SettingsView.css";
 
@@ -67,6 +68,7 @@ function ToolRow({ label, hint, settingKey }: { label: string; hint: string; set
 
 export default function SettingsView(): JSX.Element {
   const [downloadsDir, setDownloadsDir] = useState("");
+  const [theme, setTheme] = useState("dead-terminal");
 
   useEffect(() => {
     (async () => {
@@ -76,11 +78,36 @@ export default function SettingsView(): JSX.Element {
         /* ignore */
       }
     })();
+    getSetting("ui.theme").then((v) => v && setTheme(v)).catch(() => {});
   }, []);
+
+  function pickTheme(id: string) {
+    setTheme(id);
+    applyTheme(id);
+    void setSetting("ui.theme", id);
+  }
 
   return (
     <div className="settings-view">
       <h1 className="settings-title">Settings</h1>
+
+      <section className="settings-section card">
+        <h3>Theme</h3>
+        <p className="mute">Pick a skin — applies instantly and is remembered.</p>
+        <div className="theme-grid">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              className={`theme-swatch${theme === t.id ? " active" : ""}`}
+              onClick={() => pickTheme(t.id)}
+              title={t.name}
+            >
+              <span className="theme-dot" style={{ background: t.swatch }} />
+              <span className="theme-name">{t.name}</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className="settings-section card">
         <h3>Tools</h3>

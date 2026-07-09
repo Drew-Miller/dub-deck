@@ -1,0 +1,63 @@
+/* Shows grid — square album covers. */
+
+.shows-view { padding: 22px 26px; display: flex; flex-direction: column; gap: 16px; }
+
+.shows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+}
+.show-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.show-cover-wrap { position: relative; }
+.show-cover {
+  width: 100%;
+  padding: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--bg-hover), var(--bg-elev));
+  border: 1px solid var(--border-solid);
+  color: var(--accent);
+  font-size: 44px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.show-fav {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+}
+.show-fav:hover { background: rgba(0, 0, 0, 0.72); }
+.show-fav.active { color: var(--like); }
+.show-cover-title { background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.show-card-foot { margin-top: 2px; }
+.show-edit { padding: 4px 8px; font-size: 11px; }
+.show-card:hover .show-cover { border-color: var(--accent); box-shadow: var(--glow-accent); }
+.show-cover img { width: 100%; height: 100%; object-fit: cover; }
+.show-name { font-size: 14px; font-weight: 600; }
+.show-count { font-size: 12px; }
+
+.shows-detail-head { gap: 12px; margin-bottom: 4px; }

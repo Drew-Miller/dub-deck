@@ -6,6 +6,8 @@ export interface Show {
   created_at: string;
   /** Optional show artwork URL (may be null; seeded from feeds/episodes). */
   image_url: string | null;
+  /** Whether the show is favorited (0/1 from SQLite). */
+  favorited: boolean;
   /** Populated by listShows(); number of episodes in the show. */
   episode_count?: number;
 }
@@ -57,6 +59,12 @@ export interface Episode {
   show_image: string | null;
   /** Local path of a downloaded copy (null = stream from source). */
   download_path: string | null;
+  /** Resume position in seconds (null = not started). */
+  position: number | null;
+  /** ISO timestamp of the last time this was played (null = never). */
+  played_at: string | null;
+  /** Watched to (near) the end. */
+  finished: boolean;
 }
 
 export interface Playlist {
@@ -73,7 +81,13 @@ export type EpisodeSort =
   | "date_asc"
   | "date_desc"
   | "added_desc"
-  | "title_asc";
+  | "added_asc"
+  | "title_asc"
+  | "title_desc";
+
+/** UI sort field (paired with a direction) that maps to an EpisodeSort. */
+export type SortField = "number" | "date" | "added" | "title";
+export type SortDir = "asc" | "desc";
 
 export interface EpisodeFilter {
   /** Restrict to these shows. Empty/undefined = all shows. */

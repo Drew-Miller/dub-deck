@@ -9,6 +9,7 @@ import {
 } from "../lib/db";
 import { usePlayer, useLibraryVersion, useBumpLibrary } from "../lib/state";
 import type { Playlist, Episode } from "../types";
+import RowThumb from "./RowThumb";
 import "./Sidebars.css";
 
 /** Format an ISO 'YYYY-MM-DD' date into something compact and readable. */
@@ -23,7 +24,7 @@ function formatDate(date: string | null): string {
   });
 }
 
-export default function PlaylistsView(): JSX.Element {
+export default function PlaylistsView({ openId }: { openId?: number }): JSX.Element {
   const { play, playQueue } = usePlayer();
   const version = useLibraryVersion();
   const bump = useBumpLibrary();
@@ -33,6 +34,7 @@ export default function PlaylistsView(): JSX.Element {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [favOnly, setFavOnly] = useState(false);
 
   // Load the playlist list (and keep the selection valid) on library changes.
   useEffect(() => {
@@ -73,7 +75,12 @@ export default function PlaylistsView(): JSX.Element {
     };
   }, [selectedId, version]);
 
+  useEffect(() => {
+    if (openId != null) setSelectedId(openId);
+  }, [openId]);
+
   const selected = playlists.find((p) => p.id === selectedId) ?? null;
+  const shown = favOnly ? episodes.filter((e) => e.favorited) : episodes;
 
   async function handleCreate() {
     const name = newName.trim();
@@ -170,9 +177,16 @@ export default function PlaylistsView(): JSX.Element {
                 <div className="row">
                   <button
                     type="button"
+                    className={"chip" + (favOnly ? " active" : "")}
+                    onClick={() => setFavOnly((v) => !v)}
+                  >
+                    <span aria-hidden="true">&#9829;</span> Favorites
+                  </button>
+                  <button
+                    type="button"
                     className="btn btn-primary"
-                    onClick={() => playQueue(episodes, 0, selected.name)}
-                    disabled={episodes.length === 0}
+                    onClick={() => playQueue(shown, 0, selected.name)}
+                    disabled={shown.length === 0}
                   >
                     <span aria-hidden="true">&#9654;</span> Play all
                   </button>
@@ -188,27 +202,28 @@ export default function PlaylistsView(): JSX.Element {
                 </div>
               </div>
 
-              {episodes.length === 0 ? (
+              {shown.length === 0 ? (
                 <div className="dd-empty">
                   <span className="dd-empty-icon" aria-hidden="true">&#9834;</span>
-                  <span>This playlist is empty.</span>
+                  <span>{favOnly ? "No favorites in this playlist." : "This playlist is empty."}</span>
                 </div>
               ) : (
                 <div className="dd-list scroll-y">
-                  {episodes.map((ep, i) => (
+                  {shown.map((ep, i) => (
                     <div
                       key={ep.id}
                       className="dd-row"
                       role="button"
                       tabIndex={0}
-                      onClick={() => play(ep, episodes, selected.name)}
+                      onClick={() => play(ep, shown, selected.name)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          play(ep, episodes, selected.name);
+                          play(ep, shown, selected.name);
                         }
                       }}
                     >
+                      <RowThumb ep={ep} />
                       <span className="dd-row-num">
                         <span className="dd-row-index">{i + 1}</span>
                         <span className="dd-row-play" aria-hidden="true">&#9654;</span>

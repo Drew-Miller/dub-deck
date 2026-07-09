@@ -3,7 +3,7 @@
 // and reports edits through `onChange`.
 
 import type { JSX } from "react";
-import type { Show, EpisodeSort } from "../types";
+import type { Show, SortField, SortDir } from "../types";
 
 export interface FilterState {
   showIds: number[];
@@ -13,7 +13,8 @@ export interface FilterState {
   /** Inclusive-looking [min, max] bucket label range, e.g. [100, 200]. */
   episodeBucket?: [number, number];
   favoritedOnly: boolean;
-  sort: EpisodeSort;
+  sortField: SortField;
+  sortDir: SortDir;
 }
 
 interface FilterBarProps {
@@ -29,13 +30,11 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ] as const;
 
-const SORT_OPTIONS: { value: EpisodeSort; label: string }[] = [
-  { value: "number_asc", label: "Episode ↑" },
-  { value: "number_desc", label: "Episode ↓" },
-  { value: "date_asc", label: "Date ↑" },
-  { value: "date_desc", label: "Date ↓" },
-  { value: "added_desc", label: "Recently added" },
-  { value: "title_asc", label: "Title A–Z" },
+const FIELD_OPTIONS: { value: SortField; label: string }[] = [
+  { value: "added", label: "Recently added" },
+  { value: "number", label: "Episode #" },
+  { value: "date", label: "Date" },
+  { value: "title", label: "Title" },
 ];
 
 /** Build episode-number buckets [1,100],[100,200],... covering `max`. */
@@ -110,16 +109,30 @@ export default function FilterBar({
         <label className="row sort-select">
           <span className="filter-label">Sort</span>
           <select
-            value={value.sort}
-            onChange={(e) => set({ sort: e.target.value as EpisodeSort })}
+            value={value.sortField}
+            onChange={(e) => set({ sortField: e.target.value as SortField })}
           >
-            {SORT_OPTIONS.map((o) => (
+            {FIELD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </select>
         </label>
+        <button
+          className="icon-btn sort-dir"
+          title={value.sortDir === "asc" ? "Ascending" : "Descending"}
+          onClick={() => set({ sortDir: value.sortDir === "asc" ? "desc" : "asc" })}
+        >
+          {value.sortDir === "asc" ? "↑" : "↓"}
+        </button>
+        <button
+          className={`chip filter-fav${value.favoritedOnly ? " active" : ""}`}
+          onClick={() => set({ favoritedOnly: !value.favoritedOnly })}
+          title="Favorites only"
+        >
+          ♥
+        </button>
       </div>
 
       {/* Shows */}
@@ -211,17 +224,6 @@ export default function FilterBar({
         </div>
       )}
 
-      {/* Favorites toggle */}
-      <div className="filter-group">
-        <div className="row wrap">
-          <button
-            className={`chip${value.favoritedOnly ? " active" : ""}`}
-            onClick={() => set({ favoritedOnly: !value.favoritedOnly })}
-          >
-            {"♥"} Favorites
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

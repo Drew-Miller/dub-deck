@@ -47,6 +47,9 @@ function normalizeEpisode(row: any): Episode {
     added_at: row.added_at,
     show_image: row.show_image ?? null,
     download_path: row.download_path ?? null,
+    position: row.position ?? null,
+    played_at: row.played_at ?? null,
+    finished: !!row.finished,
   };
 }
 
@@ -57,14 +60,69 @@ export function mediaSrc(filePath: string): string {
 
 // ---------------------------------------------------------------- Shows
 
+function normalizeShow(r: any): Show {
+  return {
+    id: r.id,
+    title: r.title,
+    created_at: r.created_at,
+    image_url: r.image_url ?? null,
+    favorited: !!r.favorited,
+    episode_count: r.episode_count,
+  };
+}
+
 export async function listShows(): Promise<Show[]> {
   const db = await getDb();
-  return db.select<Show[]>(
-    `SELECT s.id, s.title, s.created_at, s.image_url,
+  const rows = await db.select<any[]>(
+    `SELECT s.id, s.title, s.created_at, s.image_url, s.favorited,
             (SELECT COUNT(*) FROM episodes e WHERE e.show_id = s.id) AS episode_count
        FROM shows s
       ORDER BY s.title COLLATE NOCASE ASC`
   );
+  return rows.map(normalizeShow);
+}
+
+export async function toggleShowFavorite(id: number): Promise<boolean> {
+  const db = await getDb();
+  await db.execute(
+    `UPDATE shows SET favorited = CASE WHEN favorited = 1 THEN 0 ELSE 1 END WHERE id = ?`,
+    [id]
+  );
+  const r = await db.select<{ favorited: number }[]>(`SELECT favorited FROM shows WHERE id = ?`, [id]);
+  return !!r[0]?.favorited;
+}
+
+export async function updateShow(
+  id: number,
+  fields: { title?: string; image_url?: string | null }
+): Promise<void> {
+  const db = await getDb();
+  const sets: string[] = [];
+  const params: any[] = [];
+  if (fields.title !== undefined) {
+    sets.push("title = ?");
+    params.push(fields.title.trim());
+  }
+  if (fields.image_url !== undefined) {
+    sets.push("image_url = ?");
+    params.push(fields.image_url);
+  }
+  if (!sets.length) return;
+  params.push(id);
+  await db.execute(`UPDATE shows SET ${sets.join(", ")} WHERE id = ?`, params);
+}
+
+/** Shows ordered by most-recently-updated (newest episode first) — for the Shows grid. */
+export async function listShowsRecent(): Promise<Show[]> {
+  const db = await getDb();
+  const rows = await db.select<any[]>(
+    `SELECT s.id, s.title, s.created_at, s.image_url, s.favorited,
+            (SELECT COUNT(*) FROM episodes e WHERE e.show_id = s.id) AS episode_count
+       FROM shows s
+      ORDER BY (SELECT MAX(e.added_at) FROM episodes e WHERE e.show_id = s.id) DESC NULLS LAST,
+               s.title COLLATE NOCASE ASC`
+  );
+  return rows.map(normalizeShow);
 }
 
 /** Find a show by title (case-insensitive) or create it; returns its id. */
@@ -124,7 +182,9 @@ const SORT_SQL: Record<EpisodeSort, string> = {
   date_asc: "e.published_date ASC NULLS LAST",
   date_desc: "e.published_date DESC NULLS LAST",
   added_desc: "e.added_at DESC",
+  added_asc: "e.added_at ASC",
   title_asc: "e.title COLLATE NOCASE ASC",
+  title_desc: "e.title COLLATE NOCASE DESC",
 };
 
 export async function listEpisodes(filter: EpisodeFilter = {}): Promise<Episode[]> {
@@ -351,10 +411,51 @@ export async function deleteFeed(id: number, removeEpisodes = true): Promise<voi
   await db.execute(`DELETE FROM shows WHERE id NOT IN (SELECT DISTINCT show_id FROM episodes)`);
 }
 
+/** Mark an episode as played now (bumps it to the top of Recently Listened). */
+export async function markPlayed(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute(`UPDATE episodes SET played_at = datetime('now') WHERE id = ?`, [id]);
+}
+
+/** Persist resume position (seconds) + finished flag; refreshes last-played. */
+export async function savePosition(id: number, seconds: number, finished: boolean): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `UPDATE episodes SET position = ?, finished = ?, played_at = datetime('now') WHERE id = ?`,
+    [seconds, finished ? 1 : 0, id]
+  );
+}
+
+/** Episodes played before, most recent first — for the Recently Listened view. */
+export async function listRecentlyPlayed(limit = 100): Promise<Episode[]> {
+  const db = await getDb();
+  const rows = await db.select<any[]>(
+    `SELECT e.*, s.title AS show_title, s.image_url AS show_image
+       FROM episodes e JOIN shows s ON s.id = e.show_id
+      WHERE e.played_at IS NOT NULL
+      ORDER BY e.played_at DESC
+      LIMIT ?`,
+    [limit]
+  );
+  return rows.map(normalizeEpisode);
+}
+
 /** Set (or clear, with null) the local downloaded-file path for an episode. */
 export async function setDownloadPath(id: number, path: string | null): Promise<void> {
   const db = await getDb();
   await db.execute(`UPDATE episodes SET download_path = ? WHERE id = ?`, [path, id]);
+}
+
+/** Set an episode's thumbnail (a local path, remote URL, or null to clear). */
+export async function setThumbnail(id: number, url: string | null): Promise<void> {
+  const db = await getDb();
+  await db.execute(`UPDATE episodes SET thumbnail_url = ? WHERE id = ?`, [url, id]);
+}
+
+/** Set a show's artwork image (a local path, remote URL, or null to clear). */
+export async function setShowImage(id: number, url: string | null): Promise<void> {
+  const db = await getDb();
+  await db.execute(`UPDATE shows SET image_url = ? WHERE id = ?`, [url, id]);
 }
 
 // --------------------------------------------------------------- Settings

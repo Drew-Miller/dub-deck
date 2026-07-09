@@ -70,7 +70,17 @@ async function createYouTube(
       width: "100%",
       height: "100%",
       videoId,
-      playerVars: { autoplay: 1, rel: 0, playsinline: 1, enablejsapi: 1, controls: 0 },
+      playerVars: {
+        autoplay: 1,
+        rel: 0,
+        playsinline: 1,
+        enablejsapi: 1,
+        controls: 0,
+        modestbranding: 1,
+        iv_load_policy: 3,
+        disablekb: 1,
+        fs: 0,
+      },
       events: {
         onReady: () => resolve(p),
         onStateChange: (e: any) => {
@@ -127,6 +137,8 @@ async function createVimeo(
     id: Number(videoId),
     autoplay: true,
     responsive: true,
+    controls: false,
+    keyboard: false,
   });
 
   let paused = true;

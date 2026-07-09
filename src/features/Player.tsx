@@ -17,6 +17,8 @@ import {
   createPlaylist,
   addToPlaylist,
   listRandomEpisodes,
+  markPlayed,
+  savePosition,
 } from "../lib/db";
 import { resolveMedia, type ResolvedMedia } from "../lib/sources";
 import { createIframeAdapter, type IframeAdapter } from "../lib/iframePlayer";
@@ -65,7 +67,7 @@ const IconFull = () => (<svg width="20" height="20" fill="currentColor" {...V}><
 const IconDownload = ({ done }: { done: boolean }) =>
   done
     ? (<svg width="20" height="20" fill="currentColor" {...V}><path d="M9.6 16.6L4.4 11.4 5.8 10l3.8 3.8L18.2 5.2 19.6 6.6z" /></svg>)
-    : (<svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" {...V}><path d="M12 3v11m0 0l-4-4m4 4l4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+    : (<svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...V}><path d="M7 19a4 4 0 0 1-.4-7.98A6 6 0 0 1 18 8a4.5 4.5 0 0 1 .5 8.98" /><path d="M12 11.5v5" /><path d="M9.5 14l2.5 2.5 2.5-2.5" /></svg>);
 const IconShuffle = () => (<svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...V}><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="M15 15l6 6" /><path d="M4 4l5 5" /></svg>);
 const IconVol = ({ muted }: { muted: boolean }) => (
   <svg width="22" height="22" fill="currentColor" {...V}>
@@ -206,7 +208,7 @@ export default function Player(): JSX.Element | null {
     setTime(0);
     setDur(0);
     createIframeAdapter(media.provider, host, media.videoId, {
-      onTime: setTime,
+      onTime: (t) => { setTime(t); persistProgress(t); },
       onDuration: (d) => {
         setDur(d);
         if (currentId != null && current?.duration == null && Number.isFinite(d)) {
@@ -214,7 +216,7 @@ export default function Player(): JSX.Element | null {
         }
       },
       onPlaying: setPlaying,
-      onEnded: next,
+      onEnded,
     })
       .then((a) => {
         if (cancelled) {
@@ -223,6 +225,8 @@ export default function Player(): JSX.Element | null {
         }
         adapter = a;
         transportRef.current = a;
+        const pos = current?.position ?? 0;
+        if (pos > 3 && !current?.finished) a.seek(pos);
       })
       .catch((e) => {
         if (cancelled) return;
@@ -243,7 +247,26 @@ export default function Player(): JSX.Element | null {
     setDlDone(!!current.download_path);
     setPlOpen(false);
     setControlsVisible(true);
+    if (currentId != null) void markPlayed(currentId);
   }, [current, currentId]);
+
+  // Throttled resume-position persistence (every ~4s of playback).
+  const lastSave = useRef(0);
+  const persistProgress = useCallback(
+    (t: number) => {
+      if (currentId == null) return;
+      const now = performance.now();
+      if (now - lastSave.current < 4000) return;
+      lastSave.current = now;
+      void savePosition(currentId, t, false);
+    },
+    [currentId]
+  );
+
+  const onEnded = useCallback(() => {
+    if (currentId != null) void savePosition(currentId, 0, true);
+    next();
+  }, [currentId, next]);
 
   useEffect(() => {
     loadTools().then(setTools).catch(() => {});
@@ -317,6 +340,12 @@ export default function Player(): JSX.Element | null {
     setDur(el.duration);
     if (current && current.duration == null && Number.isFinite(el.duration)) {
       void setDuration(currentId, el.duration);
+    }
+    // Resume where you left off (unless finished or near the end).
+    const pos = current?.position ?? 0;
+    if (pos > 3 && !current?.finished && (!Number.isFinite(el.duration) || pos < el.duration - 5)) {
+      el.currentTime = pos;
+      setTime(pos);
     }
   }, [current, currentId]);
 
@@ -395,9 +424,9 @@ export default function Player(): JSX.Element | null {
           ref={videoRef}
           className="ddp-video"
           style={isIframe ? { display: "none" } : undefined}
-          onEnded={next}
+          onEnded={onEnded}
           onLoadedMetadata={onLoadedMetadata}
-          onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+          onTimeUpdate={(e) => { const t = e.currentTarget.currentTime; setTime(t); persistProgress(t); }}
           onPlay={() => { setPlaying(true); if (expanded) bumpControls(); }}
           onPause={() => { setPlaying(false); setControlsVisible(true); }}
         />

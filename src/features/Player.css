@@ -28,6 +28,9 @@
 .ddp-expanded .ddp-embed-host { width: 100%; height: 100%; }
 .ddp-embed-host iframe { width: 100%; height: 100%; border: 0; }
 .ddp-embed-host > div { width: 100%; height: 100%; }
+/* Embeds are non-interactive so ONLY dub-deck's controls drive playback;
+   clicks pass through to the stage (click-to-toggle) and native chrome is unclickable. */
+.ddp-embed-host, .ddp-embed-host * { pointer-events: none; }
 
 .ddp-media-error {
   position: absolute;

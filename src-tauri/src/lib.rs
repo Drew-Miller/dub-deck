@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::{Emitter, Manager};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// Hard cap on the local log file. When it reaches this size it is deleted and
@@ -193,6 +194,16 @@ fn download_scrape(url: String, dest: String, ytdlp: String) -> Result<(), Strin
     Ok(())
 }
 
+/// Save raw image bytes (e.g. a pasted thumbnail) to `dest`.
+#[tauri::command]
+fn save_thumbnail(dest: String, data: Vec<u8>) -> Result<(), String> {
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&dest, &data).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Delete a downloaded file (best-effort; ok if already gone).
 #[tauri::command]
 fn remove_file(path: String) -> Result<(), String> {
@@ -318,6 +329,23 @@ pub fn run() {
                 value TEXT NOT NULL
             );
         ",
+        },
+        Migration {
+            version: 6,
+            description: "playback progress: resume position, last-played, finished",
+            kind: MigrationKind::Up,
+            sql: "
+            ALTER TABLE episodes ADD COLUMN position REAL;
+            ALTER TABLE episodes ADD COLUMN played_at TEXT;
+            ALTER TABLE episodes ADD COLUMN finished INTEGER NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS idx_episodes_played ON episodes(played_at);
+        ",
+        },
+        Migration {
+            version: 7,
+            description: "favorite shows",
+            kind: MigrationKind::Up,
+            sql: "ALTER TABLE shows ADD COLUMN favorited INTEGER NOT NULL DEFAULT 0;",
     }];
 
     let builder = tauri::Builder::default()
@@ -341,6 +369,35 @@ pub fn run() {
                 }
             }
             write_log_line(&handle, "[startup] dub-deck launched");
+
+            // Cross-platform menu with a Preferences item (Cmd/Ctrl+,) that opens
+            // Settings, plus a standard Edit submenu so clipboard shortcuts work.
+            let prefs = MenuItemBuilder::new("Preferences…")
+                .id("preferences")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?;
+            let app_menu = SubmenuBuilder::new(app, "dub-deck")
+                .item(&prefs)
+                .separator()
+                .quit()
+                .build()?;
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .build()?;
+            let menu = MenuBuilder::new(app).items(&[&app_menu, &edit_menu]).build()?;
+            app.set_menu(menu)?;
+            app.on_menu_event(|app, event| {
+                if event.id() == "preferences" {
+                    let _ = app.emit("open-settings", ());
+                }
+            });
+
             Ok(())
         });
 
@@ -353,6 +410,7 @@ pub fn run() {
             download_media,
             download_hls,
             download_scrape,
+            save_thumbnail,
             remove_file
         ])
         .run(tauri::generate_context!())

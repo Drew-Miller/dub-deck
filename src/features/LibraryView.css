@@ -78,6 +78,60 @@
   font-size: 15px;
 }
 
+/* sort direction toggle + favorites chip in the top controls row */
+.sort-dir { width: 36px; height: 36px; font-size: 16px; flex: 0 0 auto; }
+.filter-fav { flex: 0 0 auto; }
+
+/* source-type badges on library rows */
+.episode-flags { display: flex; align-items: center; gap: 6px; }
+.src-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border-solid);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.src-rss { color: #7bd88f; border-color: #2f5a3f; }
+.src-url { color: #6fb3ff; border-color: #2f4a6a; }
+.src-youtube { color: #ff6b6b; border-color: #6a2f2f; }
+.src-vimeo { color: #6fd0ff; border-color: #2f5a6a; }
+.src-scrape { color: #d0a0ff; border-color: #4a2f6a; }
+.src-downloaded { color: var(--accent); border-color: var(--accent); }
+.src-finished { color: var(--accent); border-color: var(--accent); }
+
+.episode-progress {
+  margin-top: 5px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+.episode-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+
+/* super-subtle zebra striping on list rows */
+.library-list .episode-row:nth-child(even):not(.current):not(.selected):not(:hover) {
+  background: rgba(127, 127, 127, 0.04);
+}
+
+/* row ⋯ menu: separators + leading icons */
+.row-menu-sep { height: 1px; background: var(--border-solid); margin: 4px 0; }
+.row-menu-icon { display: inline-block; width: 18px; text-align: center; opacity: 0.75; }
+.row-menu-empty { padding: 6px 10px; }
+
+/* multi-select edit mode */
+.library-bulk {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg-hover);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+.episode-check { width: 22px; text-align: center; font-size: 16px; color: var(--accent); flex: 0 0 auto; }
+.episode-row.selected { background: #0f2418; box-shadow: inset 2px 0 0 var(--accent); }
+
 .sort-select {
   gap: 8px;
   flex: 0 0 auto;

@@ -9,6 +9,14 @@ import type { Episode, SourceType } from "../types";
 export type PlaybackKind = "native" | "iframe";
 export type EmbedProvider = "youtube" | "vimeo";
 
+/** Resolve a thumbnail/artwork value into a usable <img src>: remote URLs and
+ *  data URLs pass through; a local file path is converted via the asset protocol. */
+export function imageSrc(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  return convertFileSrc(url);
+}
+
 /** native = plays in <video> (file/direct_url/rss/scrape); iframe = embed (youtube/vimeo). */
 export function playbackKind(source: SourceType): PlaybackKind {
   return source === "youtube" || source === "vimeo" ? "iframe" : "native";

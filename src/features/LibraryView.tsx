@@ -5,9 +5,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import type { Show, Episode, EpisodeFilter } from "../types";
-import { listShows, listEpisodes, listYears, deleteEpisode } from "../lib/db";
+import type { Show, Episode, EpisodeFilter, EpisodeSort, SortField, SortDir, Playlist } from "../types";
+import { listShows, listEpisodes, listYears, deleteEpisode, listPlaylists, addToPlaylist } from "../lib/db";
 import { downloadEpisode, removeDownload, downloadState, loadTools, type Tools } from "../lib/downloads";
+import RowThumb from "./RowThumb";
 import { usePlayer, useLibraryVersion, useBumpLibrary } from "../lib/state";
 import { log } from "../lib/log";
 import FilterBar, { type FilterState } from "./FilterBar";
@@ -18,8 +19,17 @@ const DEFAULT_FILTER: FilterState = {
   showIds: [],
   search: "",
   favoritedOnly: false,
-  sort: "number_asc",
+  sortField: "added",
+  sortDir: "desc",
 };
+
+/** Map a (field, direction) pair to the DB sort key. */
+function sortKey(field: SortField, dir: SortDir): EpisodeSort {
+  if (field === "number") return dir === "asc" ? "number_asc" : "number_desc";
+  if (field === "date") return dir === "asc" ? "date_asc" : "date_desc";
+  if (field === "added") return dir === "asc" ? "added_asc" : "added_desc";
+  return dir === "asc" ? "title_asc" : "title_desc";
+}
 
 /** Translate the UI filter into the database's EpisodeFilter shape. */
 function toEpisodeFilter(f: FilterState, search: string): EpisodeFilter {
@@ -29,7 +39,7 @@ function toEpisodeFilter(f: FilterState, search: string): EpisodeFilter {
     year: f.year,
     month: f.month,
     favoritedOnly: f.favoritedOnly || undefined,
-    sort: f.sort,
+    sort: sortKey(f.sortField, f.sortDir),
   };
   if (f.episodeBucket) {
     // Bucket [100, 200] means 100..199 so adjacent buckets don't overlap.
@@ -44,7 +54,30 @@ function formatDate(iso: string | null): string {
   return iso;
 }
 
-export default function LibraryView(): JSX.Element {
+/** Per-source-type label + color class for the library row badge. */
+const SOURCE_META: Record<string, { label: string; cls: string }> = {
+  file: { label: "Local", cls: "src-file" },
+  rss: { label: "Podcast", cls: "src-rss" },
+  direct_url: { label: "URL", cls: "src-url" },
+  youtube: { label: "YouTube", cls: "src-youtube" },
+  vimeo: { label: "Vimeo", cls: "src-vimeo" },
+  scrape: { label: "Scrape", cls: "src-scrape" },
+};
+
+const IconCloudDownload = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M7 19a4 4 0 0 1-.4-7.98A6 6 0 0 1 18 8a4.5 4.5 0 0 1 .5 8.98" />
+    <path d="M12 11.5v5" />
+    <path d="M9.5 14l2.5 2.5 2.5-2.5" />
+  </svg>
+);
+const IconCheck = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M9.6 16.6L4.4 11.4 5.8 10l3.8 3.8L18.2 5.2 19.6 6.6z" />
+  </svg>
+);
+
+export default function LibraryView({ onImport }: { onImport?: () => void }): JSX.Element {
   const player = usePlayer();
   const libraryVersion = useLibraryVersion();
   const bumpLibrary = useBumpLibrary();
@@ -52,6 +85,10 @@ export default function LibraryView(): JSX.Element {
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [editing, setEditing] = useState<Episode | null>(null);
   const [tools, setTools] = useState<Tools>({ ytdlp: false, ffmpeg: false });
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkPlaylists, setBulkPlaylists] = useState<Playlist[]>([]);
+  const [bulkPlOpen, setBulkPlOpen] = useState(false);
 
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -123,7 +160,8 @@ export default function LibraryView(): JSX.Element {
     filter.episodeBucket?.[0],
     filter.episodeBucket?.[1],
     filter.favoritedOnly,
-    filter.sort,
+    filter.sortField,
+    filter.sortDir,
     libraryVersion,
   ]);
 
@@ -188,6 +226,38 @@ export default function LibraryView(): JSX.Element {
     bumpLibrary();
   };
 
+  const toggleSelect = (id: number) => {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
+
+  const exitSelect = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+    setBulkPlOpen(false);
+  };
+
+  const bulkDelete = async () => {
+    for (const id of selected) await deleteEpisode(id);
+    exitSelect();
+    bumpLibrary();
+  };
+
+  const openBulkPlaylists = async () => {
+    setBulkPlaylists(await listPlaylists());
+    setBulkPlOpen(true);
+  };
+
+  const bulkAddToPlaylist = async (playlistId: number) => {
+    for (const id of selected) await addToPlaylist(playlistId, id);
+    exitSelect();
+    bumpLibrary();
+  };
+
   // Close the row ⋯ menu on any outside mousedown.
   useEffect(() => {
     if (menuFor == null) return;
@@ -208,7 +278,47 @@ export default function LibraryView(): JSX.Element {
         />
         <div className="row spread library-meta">
           <span className="muted">{loading ? "Loading…" : resultLabel}</span>
+          <div className="row">
+            <button className="btn btn-ghost" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}>
+              {selectMode ? "Done" : "✎ Select"}
+            </button>
+            {onImport && (
+              <button className="btn btn-ghost library-import" onClick={onImport}>
+                ＋ Import
+              </button>
+            )}
+          </div>
         </div>
+
+        {selectMode && (
+          <div className="row spread library-bulk">
+            <span className="muted">{selected.size} selected</span>
+            <div className="row" onClick={(e) => e.stopPropagation()}>
+              <div className="row-menu-wrap">
+                <button
+                  className="btn btn-ghost"
+                  disabled={!selected.size}
+                  onClick={() => { if (bulkPlOpen) setBulkPlOpen(false); else void openBulkPlaylists(); }}
+                >
+                  Add to playlist
+                </button>
+                {bulkPlOpen && (
+                  <div className="row-menu card" role="menu" onMouseDown={(e) => e.stopPropagation()}>
+                    {bulkPlaylists.length === 0 && <div className="row-menu-empty mute">No playlists yet.</div>}
+                    {bulkPlaylists.map((pl) => (
+                      <button key={pl.id} role="menuitem" onClick={() => bulkAddToPlaylist(pl.id)}>
+                        {pl.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button className="btn edit-danger" disabled={!selected.size} onClick={bulkDelete}>
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="library-list scroll-y">
@@ -222,49 +332,84 @@ export default function LibraryView(): JSX.Element {
         ) : (
           episodes.map((ep) => {
             const isCurrent = player.current?.id === ep.id;
+            const dl = downloadState(ep, tools);
+            const src = SOURCE_META[ep.source_type] ?? { label: ep.source_type, cls: "" };
             return (
               <div
                 key={ep.id}
-                className={`episode-row${isCurrent ? " current" : ""}`}
-                onClick={() => playEpisode(ep)}
+                className={`episode-row${isCurrent ? " current" : ""}${selectMode && selected.has(ep.id) ? " selected" : ""}`}
+                onClick={() => (selectMode ? toggleSelect(ep.id) : playEpisode(ep))}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    playEpisode(ep);
+                    if (selectMode) toggleSelect(ep.id);
+                    else playEpisode(ep);
                   }
                 }}
               >
-                <div className="episode-num">
-                  {ep.episode_number != null ? ep.episode_number : "•"}
-                </div>
+                {selectMode && (
+                  <div className="episode-check" aria-hidden="true">
+                    {selected.has(ep.id) ? "☑" : "☐"}
+                  </div>
+                )}
+                <RowThumb ep={ep} />
+                {ep.episode_number != null && (
+                  <div className="episode-num">{ep.episode_number}</div>
+                )}
 
                 <div className="grow episode-main">
                   <div className="episode-title truncate">{ep.title}</div>
                   <div className="episode-sub muted truncate">
                     {ep.show_title ?? "Unknown show"} · {formatDate(ep.published_date)}
                   </div>
+                  {ep.duration && ep.position ? (
+                    <div className="episode-progress" title={`${Math.round((ep.position / ep.duration) * 100)}% watched`}>
+                      <div
+                        className="episode-progress-fill"
+                        style={{ width: `${Math.min(100, (ep.position / ep.duration) * 100)}%` }}
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="episode-flags">
+                  {ep.finished && <span className="src-badge src-finished" title="Finished">✓</span>}
+                  <span className={`src-badge ${src.cls}`} title={`Source: ${src.label}`}>{src.label}</span>
+                  {ep.download_path && (
+                    <span className="src-badge src-downloaded" title="Downloaded">⬇</span>
+                  )}
                   {ep.favorited && (
                     <span className="flag fav" title="Favorite">♥</span>
                   )}
                 </div>
 
-                <button
-                  className="icon-btn play-btn"
-                  title="Play"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    playEpisode(ep);
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </button>
+                {!selectMode && (
+                  <button
+                    className="icon-btn play-btn"
+                    title="Play"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playEpisode(ep);
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </button>
+                )}
+
+                {!selectMode && dl !== "none" && (
+                  <button
+                    className={`icon-btn dl-btn${dl === "downloaded" ? " active" : ""}`}
+                    title={dl === "downloaded" ? "Downloaded — remove" : dl === "needs-ytdlp" ? "Enable yt-dlp in Settings" : dl === "needs-ffmpeg" ? "Enable ffmpeg in Settings" : "Download"}
+                    disabled={dl === "needs-ytdlp" || dl === "needs-ffmpeg"}
+                    onClick={(e) => { e.stopPropagation(); if (dl === "downloaded") onRemoveDownload(ep); else onDownload(ep); }}
+                  >
+                    {dl === "downloaded" ? <IconCheck /> : <IconCloudDownload />}
+                  </button>
+                )}
 
                 <div className="row-menu-wrap" onClick={(e) => e.stopPropagation()}>
                   <button
@@ -285,33 +430,48 @@ export default function LibraryView(): JSX.Element {
                       onMouseDown={(e) => e.stopPropagation()}
                     >
                       <button role="menuitem" onClick={() => { setMenuFor(null); player.playNext(ep); }}>
-                        Play next
+                        <span className="row-menu-icon" aria-hidden="true">⏭</span> Play next
                       </button>
                       <button role="menuitem" onClick={() => { setMenuFor(null); player.addToQueue(ep); }}>
-                        Add to queue
+                        <span className="row-menu-icon" aria-hidden="true">＋</span> Add to queue
                       </button>
-                      {(() => {
-                        const st = downloadState(ep, tools);
-                        if (st === "downloaded")
-                          return <button role="menuitem" onClick={() => onRemoveDownload(ep)}>Remove download</button>;
-                        if (st === "available")
-                          return <button role="menuitem" onClick={() => onDownload(ep)}>Download</button>;
-                        if (st === "needs-ytdlp")
-                          return <button role="menuitem" disabled title="Enable yt-dlp in Settings">Download (needs yt-dlp)</button>;
-                        if (st === "needs-ffmpeg")
-                          return <button role="menuitem" disabled title="Enable ffmpeg in Settings">Download (needs ffmpeg)</button>;
-                        return null;
-                      })()}
+                      {dl !== "none" && (
+                        <>
+                          <div className="row-menu-sep" />
+                          {dl === "downloaded" && (
+                            <button role="menuitem" onClick={() => onRemoveDownload(ep)}>
+                              <span className="row-menu-icon" aria-hidden="true">✓</span> Remove download
+                            </button>
+                          )}
+                          {dl === "available" && (
+                            <button role="menuitem" onClick={() => onDownload(ep)}>
+                              <span className="row-menu-icon" aria-hidden="true">⬇</span> Download
+                            </button>
+                          )}
+                          {dl === "needs-ytdlp" && (
+                            <button role="menuitem" disabled title="Enable yt-dlp in Settings">
+                              <span className="row-menu-icon" aria-hidden="true">⬇</span> Download (needs yt-dlp)
+                            </button>
+                          )}
+                          {dl === "needs-ffmpeg" && (
+                            <button role="menuitem" disabled title="Enable ffmpeg in Settings">
+                              <span className="row-menu-icon" aria-hidden="true">⬇</span> Download (needs ffmpeg)
+                            </button>
+                          )}
+                        </>
+                      )}
+                      <div className="row-menu-sep" />
                       <button role="menuitem" onClick={() => { setMenuFor(null); setEditing(ep); }}>
-                        Edit metadata
+                        <span className="row-menu-icon" aria-hidden="true">✎</span> Edit metadata
                       </button>
                       {ep.source_type === "file" && (
                         <button role="menuitem" onClick={() => onReveal(ep)}>
-                          Reveal in Finder
+                          <span className="row-menu-icon" aria-hidden="true">↗</span> Reveal in Finder
                         </button>
                       )}
+                      <div className="row-menu-sep" />
                       <button role="menuitem" className="row-menu-danger" onClick={() => onDelete(ep)}>
-                        Delete episode
+                        <span className="row-menu-icon" aria-hidden="true">🗑</span> Delete episode
                       </button>
                     </div>
                   )}

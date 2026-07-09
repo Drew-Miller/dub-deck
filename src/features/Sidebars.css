@@ -107,6 +107,7 @@
   transition: background 0.12s;
 }
 .dd-row:hover { background: var(--bg-hover); }
+.dd-list .dd-row:nth-child(even):not(:hover) { background: rgba(127, 127, 127, 0.04); }
 .dd-row:hover .dd-row-num .dd-row-play { display: inline; }
 .dd-row:hover .dd-row-num .dd-row-index { display: none; }
 .dd-row-remove { opacity: 0; transition: opacity 0.12s; }

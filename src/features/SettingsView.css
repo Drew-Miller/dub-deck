@@ -45,3 +45,24 @@
 }
 
 .settings-sources-head { font-size: 15px; margin: 0 0 4px; padding: 0 2px; }
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.theme-swatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text);
+  text-align: left;
+}
+.theme-swatch:hover { border-color: var(--accent); }
+.theme-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.theme-dot { width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto; border: 1px solid #0006; }
+.theme-name { font-size: 13px; }

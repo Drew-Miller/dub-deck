@@ -2,14 +2,18 @@
 // date, description) or delete it. Opened from an episode row in the library.
 
 import { useEffect, useState } from "react";
-import type { JSX } from "react";
+import type { JSX, ClipboardEvent } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { appDataDir, join } from "@tauri-apps/api/path";
 import type { Episode, Show } from "../types";
 import {
   listShows,
   updateEpisode,
   setEpisodeShow,
   deleteEpisode,
+  setThumbnail,
 } from "../lib/db";
+import { imageSrc } from "../lib/sources";
 import "./EditEpisodeDialog.css";
 
 interface Props {
@@ -31,6 +35,55 @@ export default function EditEpisodeDialog({ episode, onSaved, onClose }: Props):
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(episode.thumbnail_url);
+  const [thumbBusy, setThumbBusy] = useState(false);
+  const [thumbErr, setThumbErr] = useState<string | null>(null);
+
+  async function saveThumbBlob(blob: Blob) {
+    setThumbBusy(true);
+    setThumbErr(null);
+    try {
+      const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg").replace("svg+xml", "svg");
+      const dir = await join(await appDataDir(), "thumbnails");
+      const dest = await join(dir, `ep-${episode.id}-${Date.now()}.${ext}`);
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      await invoke("save_thumbnail", { dest, data: Array.from(buf) });
+      await setThumbnail(episode.id, dest);
+      setThumbUrl(dest);
+      onSaved();
+    } catch (e) {
+      setThumbErr(String(e instanceof Error ? e.message : e));
+    } finally {
+      setThumbBusy(false);
+    }
+  }
+
+  async function onThumbPaste(e: ClipboardEvent<HTMLDivElement>) {
+    const items = e.clipboardData ? Array.from(e.clipboardData.items) : [];
+    for (const it of items) {
+      if (it.type.startsWith("image/")) {
+        const blob = it.getAsFile();
+        if (blob) {
+          e.preventDefault();
+          await saveThumbBlob(blob);
+          return;
+        }
+      }
+    }
+    const text = e.clipboardData?.getData("text")?.trim();
+    if (text && /^https?:\/\/\S+$/i.test(text)) {
+      e.preventDefault();
+      await setThumbnail(episode.id, text);
+      setThumbUrl(text);
+      onSaved();
+    }
+  }
+
+  async function clearThumb() {
+    await setThumbnail(episode.id, null);
+    setThumbUrl(null);
+    onSaved();
+  }
 
   useEffect(() => {
     listShows().then(setShows).catch(() => {});
@@ -81,11 +134,53 @@ export default function EditEpisodeDialog({ episode, onSaved, onClose }: Props):
           <button className="icon-btn" onClick={onClose} disabled={busy} title="Close">✕</button>
         </div>
 
-        <div className="edit-path mute truncate" title={episode.file_path}>
-          {episode.file_path}
+        <div className="edit-source mute">
+          <div><span className="edit-source-k">Source</span> {episode.source_type}</div>
+          {episode.source_url && (
+            <div className="truncate" title={episode.source_url}>
+              <span className="edit-source-k">URL</span> {episode.source_url}
+            </div>
+          )}
+          {episode.file_path && (
+            <div className="truncate" title={episode.file_path}>
+              <span className="edit-source-k">Path</span> {episode.file_path}
+            </div>
+          )}
+          {episode.download_path && (
+            <div className="truncate" title={episode.download_path}>
+              <span className="edit-source-k">Downloaded</span> {episode.download_path}
+            </div>
+          )}
         </div>
 
         {error && <div className="import-error">{error}</div>}
+
+        <div className="field">
+          <label>Thumbnail</label>
+          <div className="edit-thumb-row">
+            <div className="edit-thumb-preview">
+              {imageSrc(thumbUrl) ? (
+                <img src={imageSrc(thumbUrl)!} alt="" />
+              ) : (
+                <span className="edit-thumb-none">No image</span>
+              )}
+            </div>
+            <div
+              className="edit-thumb-paste"
+              tabIndex={0}
+              onPaste={onThumbPaste}
+              title="Click here, then paste (Ctrl/Cmd+V) an image or an image URL"
+            >
+              {thumbBusy ? "Saving…" : "Click and paste an image (or an image URL)"}
+            </div>
+            {thumbUrl && (
+              <button type="button" className="btn btn-ghost" onClick={clearThumb} disabled={thumbBusy}>
+                Clear
+              </button>
+            )}
+          </div>
+          {thumbErr && <div className="import-error">{thumbErr}</div>}
+        </div>
 
         <div className="field">
           <label>Podcast / show</label>
