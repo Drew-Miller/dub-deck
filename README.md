@@ -1,10 +1,11 @@
 # dub-deck 🔀📼
 
 A **local desktop podcast/video player** — a personal "YouTube" for the video files
-you already have on disk. Import your own videos, organize them into shows and episodes,
-search and filter deeply, and like / favorite / playlist them while they play.
-Themed as a **"Dead Terminal"** sci-fi-horror console (cold black, phosphor-green
-readouts, blood-red alarms, monospace, CRT scanlines).
+you already have on disk, plus streaming sources you add by URL. Import your own videos,
+subscribe to podcast feeds, add direct/YouTube/Vimeo links, organize everything into shows
+and episodes, search and filter deeply, and favorite / queue / playlist them while they play.
+Ships a **"Dead Terminal"** sci-fi-horror skin (cold black, phosphor-green, blood-red alarms,
+monospace, CRT scanlines) plus 10 VS Code themes, switchable in Settings.
 
 Built with **Tauri** (Rust desktop shell) + **React + TypeScript** + **SQLite**.
 Cross-platform: **macOS** and **Windows** (Linux should work too).
@@ -13,21 +14,32 @@ Cross-platform: **macOS** and **Windows** (Linux should work too).
 
 ## Features
 
-- ✅ **Desktop app** that plays your **own local video files** (not YouTube links).
+- ✅ **Desktop app** that plays your **own local video files** and **streaming sources** you add.
 - ✅ **One-click import** — pick files and they import instantly; show, title, and episode
   number are auto-derived from each file's embedded tags. Files are **referenced in place,
   never copied** (a big library costs ~0 extra disk).
+- ✅ **Streaming sources (zero storage)** — subscribe to **podcast RSS** feeds, add a **direct
+  media URL** (.mp4/.m3u8, HLS via hls.js), or a **YouTube/Vimeo** link (iframe embed). Only URLs
+  + metadata are stored; media streams from the origin.
+- ✅ **Optional downloads** — cache a remote episode locally for offline play (MP4 built in; HLS
+  needs ffmpeg, YouTube/Vimeo need yt-dlp — pointed at from Settings, nothing auto-installed).
 - ✅ **Shows → episodes**, with metadata: original filename, title, episode #, date,
-  description, duration, resolution. **Edit / Delete / Reveal-in-Finder** via a per-row ⋯ menu.
+  description, duration, resolution, **thumbnail** (paste an image or URL). Edit / Delete /
+  Reveal via a per-row ⋯ menu; multi-select edit mode for bulk delete / add-to-playlist.
 - ✅ **Search** by title or description; **filter** by year, month (e.g. "2020 NOV"),
-  episode-number buckets of 100 (1–100, 100–200…), liked/favorited; sort by episode/date/title.
-- ✅ **Now Playing** — clicking an episode opens a **full-window video** with auto-hiding
-  overlay controls, a back arrow, and the show's other episodes in a side drawer.
-- ✅ **Mini bar** — collapsing keeps playing as an Apple-Music-style bottom bar (**audio +
-  controls only**; video is viewed in the full player).
-- ✅ **Like / Favorite / Playlists** from the player; **Liked & Favorites** views.
-- ✅ **Shuffle** random play across any mix of shows (or a shuffled queue of N).
-- 🔜 Folder-scan import; optional YouTube Data API enrichment (URL/description/air-date).
+  episode-number buckets of 100, favorites; sort by episode/date/title with asc/desc.
+- ✅ **Player** — a **full-window video** with a centered transport (skip ±10s), auto-hiding
+  controls, **progress/resume** (picks up where you left off), and an **Up Next** queue. One
+  control surface drives local, direct, HLS, and embedded sources.
+- ✅ **Queue** — Play next / Add to queue; auto-advances through the list you played from, then
+  auto-shuffles the library.
+- ✅ **Mini bar** — collapsing keeps playing as a bottom bar (**audio + controls only**; video is
+  viewed in the full player) with the show thumbnail.
+- ✅ **Favorite / Playlists** from the player; **Favorites** and **Recently Listened** views;
+  **Shows** album-cover grid.
+- ✅ **Editable, collapsible sidebar** (`Ctrl/Cmd+B`); **theme picker** (Dead Terminal + 10 VS
+  Code skins); cross-platform menu with **Settings** (`Cmd/Ctrl+,`).
+- 🔜 Folder-scan import; "relink" moved files; optional YouTube Data API enrichment.
 
 ---
 
@@ -37,8 +49,10 @@ dub-deck **references video files in place** — only lightweight metadata is st
 
 | What | Location | Holds |
 |---|---|---|
-| Your videos | `media/` or anywhere on disk | the actual files (referenced, never copied) |
-| Metadata DB (**SQLite**) | see per-OS path below | shows, episodes, likes, playlists, **file paths** |
+| Your videos | anywhere on disk | the actual local files (referenced, never copied) |
+| Remote media | not stored | streamed from the publisher; only the URL + metadata are saved |
+| Downloads (opt-in) | `<app-data>/downloads/` | locally cached copies of remote episodes |
+| Metadata DB (**SQLite**) | see per-OS path below | shows, episodes, feeds, playlists, settings, favorites, **paths + progress** |
 | Logs (250 MB cap) | `<app-data>/logs/dub-deck.log` | diagnostics + import metrics |
 
 Per-OS app-data folder (`com.dubdeck.app`):

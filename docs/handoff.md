@@ -5,11 +5,32 @@ machine on `git pull` — it is how work state survives across the Mac and Windo
 (agent memory under `~/.claude` is per-machine and does NOT sync). Read this + `decisions.md`
 at the start of a session to get oriented.
 
-Last updated: 2026-07-07.
+Last updated: 2026-07-08.
 
 ---
 
-## Current state — remote streaming sources (shipped)
+## Current state — favorites/queue/player/UX overhaul (shipped)
+
+The large A–K overhaul (see `decisions.md` › "Favorites / queue / player / downloads overhaul"
+and "UI / chrome polish") is in. Highlights now live in the app:
+
+- **Favorites-only** (likes dropped, migration v4). Single heart across player + mini bar.
+- **Queue engine** (`state.tsx`): context (the ordered list you played from) + manual queue
+  (Play next / Add to queue); auto-shuffles the library at the end.
+- **Full player**: centered transport (skip ±10 / squircle play), ✕ collapses to mini bar,
+  auto-hide ~1.5s (stays while paused, cursor hides), stage fullscreen, right-side **Up Next**.
+- **Progress/resume** (migration v6): rows show progress + finished ✓; playback resumes.
+- **Thumbnails** everywhere (rows + Shows grid) with paste-image/URL covers.
+- **Editable, collapsible sidebar** (show/hide/reorder/pin, `Ctrl/Cmd+B`), pointer-drag reorder.
+- **Theme picker** (Dead Terminal + 10 VS Code skins), applied instantly via `applyTheme()`.
+- **Single Import screen**; **Settings** (tools/sources/downloads/theme); Feeds folded into
+  Settings › Sources.
+- **Downloads** (migration v5): opt-in local cache; MP4 native, HLS via ffmpeg, YT/Vimeo via
+  yt-dlp (Settings-gated). See "Tools & downloads" below.
+- **YouTube/Vimeo native chrome suppressed** via a transparent event-eating cover; only our
+  controls show.
+
+## Current state — remote streaming sources (shipped earlier)
 
 dub-deck can now play media it does not host. Episodes carry a `source_type`; the app stores
 only URLs + metadata and streams from the origin. Built:
@@ -20,8 +41,9 @@ only URLs + metadata and streams from the origin. Built:
   turns an episode into playable media (native `<video>` vs iframe embed) + the scrape seam.
 - **Player (`src/features/Player.tsx`):** native `<video>` and iframe embeds share one
   transport; hls.js handles `.m3u8` (WebView2 has no native HLS).
-- **Ingest (`src/lib/remoteSources.ts`, `AddSourceDialog`, `FeedsView`):** add a podcast RSS
-  feed, a direct `.mp4`/`.m3u8` URL, or a YouTube/Vimeo watch URL. Feeds refresh idempotently.
+- **Ingest (`src/lib/remoteSources.ts`, `ImportView`, `FeedsView` in Settings › Sources):** add a
+  podcast RSS feed, a direct `.mp4`/`.m3u8` URL, or a YouTube/Vimeo watch URL. Feeds refresh
+  idempotently. (The old `AddSourceDialog` modal was folded into `ImportView`.)
 - **Fetch:** Rust-side via `tauri-plugin-http` (`http:default` scoped `https://**`), bypassing
   webview CORS.
 
@@ -36,6 +58,15 @@ only URLs + metadata and streams from the origin. Built:
       embed plays and the app's play/pause/seek/volume + auto-advance work.
 - [ ] **Scrape (inert):** no `scrape` UI is surfaced; if a `scrape` episode is created
       programmatically, playback shows "Scrape backend not configured on this machine."
+- [ ] **Queue:** play from a show → Up Next lists that show's remaining episodes in order;
+      auto-advances. Play next / Add to queue from a library row reorders Up Next correctly.
+- [ ] **Player:** ⏪/⏩ jump ±10s; controls hide ~1.5s after idle, persist while paused; ✕
+      collapses to the mini bar (audio continues); fullscreen fills the screen.
+- [ ] **Resume:** play partway, leave, replay → resumes near the last position; finished shows ✓.
+- [ ] **YouTube:** only Dub-Deck controls appear — pressing play never resurfaces YouTube chrome.
+- [ ] **Themes:** switch a theme in Settings → sidebar + playbar recolor immediately; persists.
+- [ ] **Sidebar edit:** hide/show/reorder items and pin a playlist; layout survives restart.
+- [ ] **Thumbnails:** paste an image in Edit → row/Shows cover updates.
 
 ---
 

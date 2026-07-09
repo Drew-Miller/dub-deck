@@ -55,8 +55,19 @@ function fmt(t: number): string {
 const V = { viewBox: "0 0 24 24", "aria-hidden": true } as const;
 const IconPlay = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M7 4.5v15a.6.6 0 0 0 .92.5l12-7.5a.6.6 0 0 0 0-1l-12-7.5A.6.6 0 0 0 7 4.5z" /></svg>);
 const IconPause = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M7 4.6h3.4v14.8H7zM13.6 4.6H17v14.8h-3.4z" /></svg>);
-const IconBack10 = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M12 6v12L3.5 12 12 6zM21 6v12l-8.5-6L21 6z" /></svg>);
-const IconFwd10 = () => (<svg width="26" height="26" fill="currentColor" {...V}><path d="M12 6v12l8.5-6L12 6zM3 6v12l8.5-6L3 6z" /></svg>);
+const SKIP_ARROW = "M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z";
+const IconBack10 = ({ s }: { s: number }) => (
+  <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d={SKIP_ARROW} />
+    <text x="12" y="15.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="currentColor">{s}</text>
+  </svg>
+);
+const IconFwd10 = ({ s }: { s: number }) => (
+  <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true">
+    <g transform="scale(-1 1) translate(-24 0)"><path fill="currentColor" d={SKIP_ARROW} /></g>
+    <text x="12" y="15.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="currentColor">{s}</text>
+  </svg>
+);
 const IconList = () => (<svg width="20" height="20" fill="currentColor" {...V}><path d="M4 6h16v2.2H4zM4 10.9h16v2.2H4zM4 15.8h10v2.2H4z" /></svg>);
 const IconPlus = () => (<svg width="20" height="20" fill="currentColor" {...V}><path d="M3 6h12v2H3zM3 11h12v2H3zM3 16h8v2H3zM18 12h2v3h3v2h-3v3h-2v-3h-3v-2h3z" /></svg>);
 const IconHeart = ({ on }: { on: boolean }) =>
@@ -433,6 +444,9 @@ export default function Player(): JSX.Element | null {
 
         {/* Embed host: the iframe adapter (YouTube/Vimeo) builds its player inside. */}
         {isIframe && <div ref={embedHostRef} className="ddp-video ddp-embed-host" />}
+        {/* Transparent cover eats all mouse events so the embed never shows native
+            chrome; events bubble to the stage (click-to-toggle, mousemove→controls). */}
+        {isIframe && <div className="ddp-embed-cover" />}
 
         {mediaError && (
           <div className="ddp-media-error">
@@ -466,13 +480,13 @@ export default function Player(): JSX.Element | null {
             {/* center transport: skip / play / skip */}
             <div className="ddp-center">
               <button className="icon-btn ddp-skip" title={`Back ${SKIP_SECONDS}s`} onClick={() => skipBy(-SKIP_SECONDS)}>
-                <IconBack10 />
+                <IconBack10 s={SKIP_SECONDS} />
               </button>
               <button className="icon-btn ddp-play-lg" title={playing ? "Pause" : "Play"} onClick={togglePlay}>
                 {playing ? <IconPause /> : <IconPlay />}
               </button>
               <button className="icon-btn ddp-skip" title={`Forward ${SKIP_SECONDS}s`} onClick={() => skipBy(SKIP_SECONDS)}>
-                <IconFwd10 />
+                <IconFwd10 s={SKIP_SECONDS} />
               </button>
             </div>
 

@@ -38,40 +38,43 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
 - ✅ Add **podcast RSS / Podcasting 2.0 feeds**: parse items → episodes; stream MP4/HLS enclosures.
 - ✅ Add a **direct media URL** (.mp4/.m3u8); HLS via hls.js (WebView2 has no native HLS).
 - ✅ Add **YouTube/Vimeo** watch URLs → iframe embed with shared transport controls.
-- 🔜 **yt-dlp scrape** is a wired-but-inert seam (off-by-default `scrape` cargo feature); not
-  installed here — enable on another machine per `docs/handoff.md`.
+- ✅ **yt-dlp scrape** is a wired-but-inert seam — now a **runtime** Settings toggle (no cargo
+  feature); nothing installed here. Enable by pointing Settings › Tools at a binary per `docs/handoff.md`.
 
 **Organization / metadata**
 - ✅ Shows (podcasts) → episodes. Per-episode: show, episode #, title, description, date.
 - ✅ Edit/delete episode metadata after import.
 - ✅ Auto-derive show/title/episode # from the file's embedded tags on import.
-- 🔜 **Always keep the original filename tied to the file**, even when other fields are derived.
-- 🔜 Also keep the **original embedded title** (raw) + **duration** (fill at import).
-- 💬 Optional extra attributes to store (resolution/quality badge, file size). Decide with user.
+- ✅ **Original filename kept** (migration v2), plus original embedded **title** + **duration** +
+  **resolution** (quality badge). Thumbnails stored per episode/show (paste image or URL).
 - ❌ URL / description / air date are **NOT** embedded in the user's files (confirmed via ffprobe);
   would require the YouTube Data API later (opt-in, needs a key + video-id matching).
 
 **Search / filter**
 - ✅ Search by title OR description.
 - ✅ Filter by year; by month (e.g. "2020 NOV"); by episode-number buckets of 100 (1–100, 100–200…);
-  by liked/favorited; plus sorting. Default sort: episode # asc, then alphabetical for unnumbered.
+  by favorites; plus sort field + asc/desc. Default sort: recently added.
 
 **Playback / collections (Spotify/Apple-Music style)**
-- ✅ Like, favorite, add-to-playlist while playing (from the player). Playlists CRUD. Liked/Favorites views.
-- ✅ Shuffle/random play across multiple selected shows; build a shuffled queue of N.
+- ✅ Favorite (single heart; likes removed, v4), add-to-playlist while playing. Playlists CRUD;
+  Favorites + Recently Listened views; Shows album-cover grid.
+- ✅ **Queue**: Play next / Add to queue; auto-advance through the played-from list, then
+  auto-shuffle the library. Up Next panel in the player.
+- ✅ **Progress/resume** (v6): saved position, resume, finished ✓; row progress bars.
 
 **Import UX**
-- ✅ One-click: pick files → auto-import immediately (no form). Date intentionally left off.
+- ✅ Single **Import** screen (local files + feed/direct/youtube-vimeo URLs, staged list, paste).
 - 🔜 Folder-scan import (pick a directory).
 
-**Library UX** 🔜 (next major task — see "Current work")
-- 🔜 iTunes-style: clicking an episode does **not** immediately play. It opens a **detail panel
-  docked at the bottom** while the list stays visible above; the panel has a **Play** button and a
-  **three-dot (⋯) menu** whose options include **Edit**. Move edit OUT of the per-row button into ⋯.
+**Library / player UX**
+- ✅ Full-window player with centered transport (skip ±10), ✕→mini bar, Up Next queue,
+  auto-hide controls. Row thumbnails, source badges, grouped ⋯ menu (Edit in ⋯), row Download.
+- ✅ Editable + collapsible sidebar (`Ctrl/Cmd+B`, show/hide/reorder/pin).
 
 **Look & feel**
-- ✅ Distinct, creative theming. History: Apple-Music-ish (rejected) → retro hi-fi amber (rejected)
-  → modern Winamp neon (rejected) → **Dead Terminal / sci-fi horror** (current). Recolor via `theme.css` tokens only.
+- ✅ **Theme picker**: Dead Terminal (default) + 10 VS Code skins, applied at runtime via
+  `themes.ts → applyTheme()` (sets tokens on `:root`). History: Apple-Music-ish / retro amber /
+  Winamp neon all rejected before Dead Terminal.
 
 ---
 
@@ -89,8 +92,8 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
 
 1. **`sql:allow-execute` permission is REQUIRED.** `sql:default` only grants
    close/load/**select** — NOT execute. Without `sql:allow-execute` in
-   `src-tauri/capabilities/default.json`, every write (import, like, favorite, playlist,
-   edit, delete) silently fails. This caused the "Nothing imported" bug.
+   `src-tauri/capabilities/default.json`, every write (import, favorite, playlist,
+   edit, delete, progress, settings) silently fails. This caused the "Nothing imported" bug.
 2. **Moving the project breaks `src-tauri/target/`** (absolute paths baked in). After any
    move, `cargo clean --manifest-path src-tauri/Cargo.toml` then `npm run tauri dev`.
 3. **React 19 removed the global `JSX` namespace.** Use `import type { JSX } from "react"`
@@ -105,6 +108,10 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
    `Player.tsx` attaches hls.js. Native HLS path only fires on macOS/Safari.
 8. **`csp: null`** in `tauri.conf.json` is required so remote `<video>` and YouTube/Vimeo
    iframes load. Setting a CSP without `media-src`/`frame-src`/`connect-src` breaks streaming.
+9. **YouTube/Vimeo native controls** are suppressed with a transparent cover div over the embed
+   (`.ddp-embed-cover`, `z-index:2`) that eats all mouse events; our overlay must stay **above**
+   it (`.ddp-overlay`, `z-index:3`) or the controls become unclickable. `pointer-events:none` on
+   the iframe does NOT work — native chrome reappears on play.
 
 ---
 
@@ -112,7 +119,7 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
 
 - Frontend: `src/lib/log.ts` → `log.info/warn/error(msg, data?)`.
 - Backend sink: `append_log` command + `write_log_line()` in `lib.rs`.
-- File: `~/Library/Application Support/com.dubdeck.app/logs/dub-deck.log`.
+- File: `<app-data>/com.dubdeck.app/logs/dub-deck.log` (per-OS app-data; see `docs/ARCHITECTURE.md`).
 - **Hard cap 250 MB** (`LOG_CAP_BYTES`): checked at startup and before every write; when
   reached the file is deleted and restarted so it never exceeds ~250 MB.
 - Import is instrumented end-to-end. Add logging to new flows; keep it best-effort (never throw into UI).
@@ -126,11 +133,14 @@ via Tauri's asset protocol (`convertFileSrc`). A huge library costs ~0 extra dis
   (`usePlayer`, `useLibraryVersion`, `useBumpLibrary`); call `bump()` after mutations so views refresh.
 - Theme via `theme.css` tokens/utility classes; keep new UI consistent with them.
 - After edits: `npx tsc --noEmit` must pass. The dev watcher auto-rebuilds `src-tauri` on Rust changes.
+- **Tests:** `npm test` (Vitest — logic/state) and `npm run test:e2e` (Playwright — layout). Write
+  logic tests against decisions/requirements, not internals; layout tests assert relative geometry,
+  never pixels. See `docs/decisions.md` › Testing.
 
 ## Commands
 
 ```bash
-cd ~/Developer/dub-deck
+# from your checkout (macOS ~/Developer/dub-deck, Windows C:\Users\<you>\Projects\dub-deck)
 npm run tauri dev      # desktop app, hot reload
 npm run build          # typecheck + build frontend
 npm run tauri build    # native bundle
@@ -148,18 +158,28 @@ npm run tauri build    # native bundle
 
 ## Done (shipped)
 
-- Full-window **Now Playing** player (auto-hiding overlay controls, back arrow, side drawer
-  of the show's episodes) + Apple-Music **mini bar** (controls only; video hidden, audio continues).
-- Edit / Delete / Reveal moved to a **per-row ⋯ menu** in the library (Reveal only for `file` sources).
+- **Player**: full-window video, centered transport (skip ±10), ✕→mini bar, auto-hide controls,
+  **Up Next** queue, **progress/resume** (v6). Mini bar = controls + thumbnail (audio continues).
+- **Queue engine** (`state.tsx`): context + manual queue, auto-shuffle at end.
+- **Favorites-only** (v4 drops likes); single heart. Recently Listened + Shows-grid views.
+- **Remote streaming sources** (v3): RSS, direct URL, YouTube/Vimeo embeds; fetch via
+  `tauri-plugin-http`. Native embed chrome suppressed (transparent cover, see gotcha 9).
+- **Downloads** (v5): opt-in local cache; MP4 native, HLS via ffmpeg, YT/Vimeo via yt-dlp,
+  gated by Settings › Tools. yt-dlp scrape now a runtime toggle.
+- **Single Import screen**; **Settings** (tools/sources/downloads/theme); Feeds → Settings › Sources.
+- **Editable + collapsible sidebar**; **theme picker** (Dead Terminal + 10 VS Code skins);
+  native menu + `Cmd/Ctrl+,` Settings. Thumbnails everywhere (paste image/URL).
 - Metadata capture (original filename/title, duration, resolution) via migration v2.
-- **Remote streaming sources** (migration v3): RSS feeds, direct URL, YouTube/Vimeo embeds;
-  `sources.ts`/`remoteSources.ts`/`iframePlayer.ts`, `AddSourceDialog` + `FeedsView`, fetch via
-  `tauri-plugin-http`. yt-dlp scrape seam present but inert. See `docs/handoff.md`.
+
+Full "why" for each: `docs/decisions.md`. File/data map: `docs/ARCHITECTURE.md`. In-flight state
++ test steps: `docs/handoff.md`.
 
 ## Next up
 
 1. 🔜 Folder-scan import (pick a directory).
-2. 🔜 Optional YouTube Data API enrichment (URL / description / air-date; needs a key).
-3. 🔜 "Relink" flow for moved/renamed files.
+2. 🔜 "Relink" flow for moved/renamed files.
+3. 🔜 Optional YouTube Data API enrichment (URL / description / air-date; needs a key).
+4. 🔜 Download **progress** reporting (currently busy → done/failed only).
 
-Keep this file, `docs/ARCHITECTURE.md`, and `docs/decisions.md` updated as decisions land.
+Keep this file, `docs/ARCHITECTURE.md`, `docs/decisions.md`, and `docs/handoff.md` current as
+decisions land. The **`docs-sync` skill** (`/docs-sync`) automates this per the doc contract.

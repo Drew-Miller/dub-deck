@@ -136,11 +136,60 @@ Dates are absolute. Format: `YYYY-MM-DD — decision — why`.
   `resolve_scrape`/`download_scrape` take the Settings-configured yt-dlp path as an argument and
   are always compiled but inert until set. — Supports the Settings-driven tool model.
 
+## UI / chrome polish
+- **2026-07-08** — **Theme picker ships 11 skins** (Dead Terminal default + 10 popular VS Code
+  themes) selectable in Settings; applied instantly and remembered. Themes are runtime: `themes.ts
+  → applyTheme()` sets design-token CSS vars on `:root`, so the sidebar and playbar recolor
+  immediately (fixed hardcoded gradients that didn't propagate). — User wanted a VS-Code-style
+  theme marketplace feel with instant, whole-UI recolor.
+- **2026-07-08** — **Sidebar is editable**: system items (Library/Playlists/Recently Listened/
+  Favorites) can be shown/hidden and **reordered**, and playlists/shows **pinned**; layout
+  persists to the `ui.sidebar` setting. Reorder uses **pointer-based drag**, not HTML5 DnD —
+  WebView2 renders a no-drop cursor and blocks native drag. Collapse is `Ctrl/Cmd+B` (floating
+  hamburger reopens). — User request; HTML5 drag was unreliable in WebView2.
+- **2026-07-08** — **Recently Listened** is a first-class sidebar view (under Library), backed by
+  `played_at`. — User request.
+- **2026-07-08** — **Thumbnails everywhere**: every list row shows a left thumbnail (episode/show
+  image, else a lettered placeholder); Shows render as an album-cover grid. Covers are set by
+  **pasting an image** (clipboard → `save_thumbnail` into app-data) or an image URL, in the
+  episode and show edit dialogs. — User wanted visual, paste-friendly artwork.
+- **2026-07-08** — **Playback progress**: per-episode `position` is saved (throttled) and videos
+  **resume where left off** (position > 3s and not finished); rows show a progress bar and a
+  finished ✓; `onEnded` marks finished and advances the queue. — User wanted resume + watched state.
+- **2026-07-08** — **YouTube/Vimeo native chrome fully suppressed**: a transparent cover div over
+  the embed (`z-index:2`) eats all mouse events so the provider never surfaces its own controls;
+  events bubble to the stage (click-to-toggle, mousemove→our controls), and our overlay sits
+  above the cover (`z-index:3`). Earlier `pointer-events:none` on the iframe let native controls
+  reappear on play. — One control surface for all sources.
+- **2026-07-08** — **Downloads UI**: library rows get an icon-only **Download** button (cloud +
+  down-arrow, hover "Download") in addition to the ⋯ menu; states are available / downloading /
+  downloaded (✓) / "enable in Settings". `file` sources never show it. Skip buttons render as
+  directional arrows with the seconds (±10) inside. — User-specified iconography.
+
+## Testing
+- **2026-07-08** — **Two-tier test framework**: **Vitest** (jsdom) for feature/state logic —
+  the queue engine (`state.tsx`) and query builders (`db.ts`), with the Tauri SQL plugin +
+  `api/core` mocked; **Playwright** (real Chromium) for appearance/layout. — jsdom has no layout
+  engine (`getBoundingClientRect` is all zeros), so relative-position checks can't live there.
+- **2026-07-08** — **Appearance tests assert relative geometry, never pixels**: e.g. sidebar's
+  right edge ≤ main's left ("left of"), mini bar top > main top ("below"). — User directive; keeps
+  layout tests robust to theming/resizing while still pinning intent.
+- **2026-07-08** — Playwright renders the **real `<App/>`** against the Vite dev server with a
+  **browser-side Tauri IPC stub** (`tests/e2e/support/tauriStub.ts`) that seeds a tiny library via
+  `window.__TAURI_INTERNALS__`. — Exercises actual layout without standing up the Rust backend.
+- **2026-07-08** — Tests are **derived from decisions + requirements**, not implementation details
+  (assert the WHERE/ORDER a filter produces and the queue's advance order, not private helpers). —
+  Tests should survive refactors and encode intended behavior.
+
 ## Docs layout
 - **2026-07-07** — All living docs (`ARCHITECTURE.md`, `decisions.md`, `handoff.md`) live in a
   root **`docs/`** folder (moved out of `.claude/docs/`). `CLAUDE.md` stays at root (Claude Code
   auto-loads it) and `README.md` stays at root (GitHub convention). — Discoverable, conventional
   location; keeps `.claude/` for tooling/config, not prose.
+- **2026-07-08** — A **`docs-sync` skill** (`.claude/skills/docs-sync/`) owns keeping the five
+  docs (README, CLAUDE, ARCHITECTURE, decisions, handoff) current and **non-redundant**, each
+  with one purpose. Committed in-repo so it travels across machines. — User wanted a repeatable,
+  low-redundancy doc-update process rather than ad-hoc edits.
 
 ## Portability
 - **2026-07-07** — Target **macOS + Windows** (Linux likely fine). Stack is cross-platform;

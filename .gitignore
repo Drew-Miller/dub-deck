@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Test artifacts (Vitest / Playwright)
+test-results
+playwright-report
+blob-report
+coverage
+
 # User media — large video files are referenced in place, never versioned
 media/*
 !media/README.txt
