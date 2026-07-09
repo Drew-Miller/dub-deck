@@ -62,6 +62,7 @@ function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [sidebar, setSidebar] = useState<Entry[]>(DEFAULT_SIDEBAR);
   const [editingSidebar, setEditingSidebar] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [shows, setShows] = useState<Show[]>([]);
   const [openPlaylist, setOpenPlaylist] = useState<number | undefined>(undefined);
@@ -146,12 +147,13 @@ function App() {
   }
   const toggleVisible = (i: number) =>
     saveSidebar(sidebar.map((e, idx) => (idx === i ? { ...e, visible: !e.visible } : e)));
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= sidebar.length) return;
+  const onDropAt = (dropIndex: number) => {
+    if (dragIndex == null || dragIndex === dropIndex) return;
     const next = sidebar.slice();
-    [next[i], next[j]] = [next[j], next[i]];
+    const [moved] = next.splice(dragIndex, 1);
+    next.splice(dropIndex, 0, moved);
     saveSidebar(next);
+    setDragIndex(null);
   };
   const removeEntry = (i: number) => saveSidebar(sidebar.filter((_, idx) => idx !== i));
   const addPin = (kind: "playlist" | "show", id: number) => {
@@ -210,19 +212,34 @@ function App() {
             const m = entryMeta(entry);
             if (editingSidebar) {
               const label = m?.label ?? (entry.kind === "playlist" ? "(deleted playlist)" : entry.kind === "show" ? "(deleted show)" : "");
+              const icon = m?.icon ?? (entry.kind === "show" ? "▦" : "≣");
               return (
-                <div key={`${entry.kind}-${entry.id}`} className="app-nav-edit">
-                  <label className="app-nav-edit-check">
-                    <input type="checkbox" checked={entry.visible} onChange={() => toggleVisible(i)} />
-                    <span className="truncate">{label}</span>
-                  </label>
-                  <div className="row app-nav-edit-btns">
-                    <button className="icon-btn" title="Move up" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
-                    <button className="icon-btn" title="Move down" onClick={() => move(i, 1)} disabled={i === sidebar.length - 1}>↓</button>
-                    {entry.kind !== "system" && (
-                      <button className="icon-btn app-nav-remove" title="Unpin" onClick={() => removeEntry(i)}>✕</button>
+                <div
+                  key={`${entry.kind}-${entry.id}`}
+                  className={`app-nav-edit${dragIndex === i ? " dragging" : ""}`}
+                  draggable
+                  onDragStart={() => setDragIndex(i)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => onDropAt(i)}
+                  onDragEnd={() => setDragIndex(null)}
+                >
+                  <span className="app-nav-drag" aria-hidden="true">⠿</span>
+                  <button
+                    className={`app-nav-toggle${entry.visible ? " on" : ""}`}
+                    onClick={() => toggleVisible(i)}
+                    title={entry.visible ? "Shown — click to hide" : "Hidden — click to show"}
+                  >
+                    {entry.visible && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
                     )}
-                  </div>
+                  </button>
+                  <span className="app-nav-icon">{icon}</span>
+                  <span className="truncate app-nav-edit-label">{label}</span>
+                  {entry.kind !== "system" && (
+                    <button className="icon-btn app-nav-remove" title="Unpin" onClick={() => removeEntry(i)}>✕</button>
+                  )}
                 </div>
               );
             }

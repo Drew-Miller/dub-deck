@@ -90,21 +90,30 @@
 .app-nav-edit {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: grab;
 }
-.app-nav-edit-check {
+.app-nav-edit.dragging { opacity: 0.45; }
+.app-nav-edit:hover { background: var(--bg-hover); }
+.app-nav-drag { flex: 0 0 auto; color: var(--text-mute); font-size: 14px; cursor: grab; letter-spacing: -2px; }
+.app-nav-toggle {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--text-mute);
+  background: var(--bg-elev-2);
+  color: var(--accent-ink, #03110a);
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-width: 0;
+  justify-content: center;
   cursor: pointer;
-  font-size: 13px;
 }
-.app-nav-edit-check input { flex: 0 0 auto; }
-.app-nav-edit-btns { gap: 2px; flex: 0 0 auto; }
-.app-nav-edit-btns .icon-btn { width: 26px; height: 26px; }
+.app-nav-toggle.on { background: var(--accent); border-color: var(--accent); }
+.app-nav-edit-label { flex: 1 1 auto; min-width: 0; font-size: 13px; }
 .app-nav-remove:hover { color: var(--alarm, #ff5555); }
 .app-pin-adder { display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 4px; }
 .app-pin-adder select { width: 100%; font-size: 13px; }
